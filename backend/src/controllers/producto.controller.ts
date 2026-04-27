@@ -7,6 +7,11 @@ import { productoSchema } from '../schemas/producto.schema.js';
 import fs from 'fs';
 import path from 'path';
 
+// Interfaz para Request con archivos de multer
+interface RequestWithFiles extends Request {
+  files?: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] };
+}
+
 const sincronizarImagenPrincipal = async (productoId: number, imagenUrl?: string) => {
   if (!imagenUrl) return;
 
@@ -28,7 +33,7 @@ const sincronizarImagenPrincipal = async (productoId: number, imagenUrl?: string
 };
 
 // Controlador para subir imágenes de producto
-export const subirImagenesProducto = async (req: Request, res: Response, next: NextFunction) => {
+export const subirImagenesProducto = async (req: RequestWithFiles, res: Response, next: NextFunction) => {
   try {
     const productoId = Number(req.params.id);
     

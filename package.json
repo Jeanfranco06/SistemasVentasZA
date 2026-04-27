@@ -23,6 +23,7 @@
         "seed": "ts-node prisma/seed.ts"
     },
     "dependencies": {
+        "@paypal/paypal-js": "^9.7.0",
         "@types/pdfkit": "^0.17.6",
         "lucide-react": "^1.11.0",
         "multer": "^2.1.1",
