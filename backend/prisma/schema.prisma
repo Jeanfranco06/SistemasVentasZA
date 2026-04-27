@@ -1,0 +1,496 @@
+// backend/prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// === SEGURIDAD ===
+model SegRol {
+  id                 Int             @id @default(autoincrement())
+  nombre             String          @unique @db.VarChar(50)
+  descripcion        String?
+  activo             Boolean         @default(true)
+  fechaCreacion      DateTime        @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime        @default(now()) @map("fecha_actualizacion")
+  segRolPermiso      SegRolPermiso[]
+  segUsuarioRol      SegUsuarioRol[]
+
+  @@map("seg_roles")
+}
+
+model SegPermiso {
+  id            Int             @id @default(autoincrement())
+  modulo        String          @db.VarChar(50)
+  accion        String          @db.VarChar(50)
+  segRolPermiso SegRolPermiso[]
+
+  @@unique([modulo, accion])
+  @@map("seg_permisos")
+}
+
+model SegRolPermiso {
+  rolId     Int        @map("rol_id")
+  permisoId Int        @map("permiso_id")
+  rol       SegRol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  permiso   SegPermiso @relation(fields: [permisoId], references: [id], onDelete: Cascade)
+
+  @@id([rolId, permisoId])
+  @@map("seg_rol_permiso")
+}
+
+model SegUsuario {
+  id                       Int                       @id @default(autoincrement())
+  email                    String                    @unique @db.VarChar(255)
+  passwordHash             String                    @map("password_hash") @db.VarChar(255)
+  nombreCompleto           String                    @map("nombre_completo") @db.VarChar(150)
+  activo                   Boolean                   @default(true)
+  fechaCreacion            DateTime                  @default(now()) @map("fecha_creacion")
+  fechaActualizacion       DateTime                  @default(now()) @map("fecha_actualizacion")
+  segUsuarioRol            SegUsuarioRol[]
+  segAuditoria             SegAuditoria[]
+  cliCliente               CliCliente?
+  catProductos             CatProducto[]             @relation("ProductoCreador")
+  invMovimientosInventario InvMovimientoInventario[]
+
+  @@map("seg_usuarios")
+}
+
+model SegUsuarioRol {
+  usuarioId Int        @map("usuario_id")
+  rolId     Int        @map("rol_id")
+  usuario   SegUsuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol       SegRol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, rolId])
+  @@map("seg_usuario_rol")
+}
+
+model SegAuditoria {
+  id              Int         @id @default(autoincrement())
+  usuarioId       Int?        @map("usuario_id")
+  accion          String      @db.VarChar(50)
+  modulo          String      @db.VarChar(50)
+  tablaAfectada   String?     @map("tabla_afectada") @db.VarChar(50)
+  registroId      Int?        @map("registro_id")
+  datosAnteriores Json?       @map("datos_anteriores") @db.JsonB
+  datosNuevos     Json?       @map("datos_nuevos") @db.JsonB
+  ipAddress       String?     @map("ip_address") @db.VarChar(45)
+  fechaCreacion   DateTime    @default(now()) @map("fecha_creacion")
+  usuario         SegUsuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@map("seg_auditoria")
+}
+
+// === CATÁLOGO (Incluyendo N:M) ===
+model CatCategoria {
+  id                 Int               @id @default(autoincrement())
+  nombre             String            @db.VarChar(100)
+  prefijoSku         String            @unique @map("prefijo_sku") @db.VarChar(3)
+  descripcion        String?
+  activo             Boolean           @default(true)
+  fechaCreacion      DateTime          @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime          @default(now()) @map("fecha_actualizacion")
+  catSubcategorias   CatSubcategoria[]
+  catProductos       CatProducto[]
+
+  @@map("cat_categorias")
+}
+
+model CatSubcategoria {
+  id           Int           @id @default(autoincrement())
+  categoriaId  Int           @map("categoria_id")
+  nombre       String        @db.VarChar(100)
+  activo       Boolean       @default(true)
+  categoria    CatCategoria  @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  catProductos CatProducto[]
+
+  @@map("cat_subcategorias")
+}
+
+model CatMarca {
+  id           Int           @id @default(autoincrement())
+  nombre       String        @unique @db.VarChar(100)
+  activo       Boolean       @default(true)
+  catProductos CatProducto[]
+
+  @@map("cat_marcas")
+}
+
+model CatUnidadMedida {
+  id           Int           @id @default(autoincrement())
+  nombre       String        @db.VarChar(50)
+  abreviatura  String        @db.VarChar(10)
+  activo       Boolean       @default(true)
+  catProductos CatProducto[]
+
+  @@map("cat_unidades_medida")
+}
+
+model CatProducto {
+  id                      Int                       @id @default(autoincrement())
+  sku                     String                    @unique @db.VarChar(20)
+  nombre                  String                    @db.VarChar(200)
+  descripcion             String?                   @db.Text
+  imagenUrl               String?                   @map("imagen_url") @db.VarChar(500)
+  categoriaId             Int                       @map("categoria_id")
+  subcategoriaId          Int?                      @map("subcategoria_id")
+  marcaId                 Int?                      @map("marca_id")
+  unidadMedidaId          Int?                      @map("unidad_medida_id")
+  precioCosto             Decimal                   @default(0) @map("precio_costo") @db.Decimal(12, 2)
+  precioVenta             Decimal                   @default(0) @map("precio_venta") @db.Decimal(12, 2)
+  precioOferta            Decimal?                  @map("precio_oferta") @db.Decimal(12, 2)
+  peso                    Decimal?                  @db.Decimal(8, 3)
+  estado                  String                    @default("borrador") @db.VarChar(20)
+  creadoPor               Int?                      @map("creado_por")
+  activo                  Boolean                   @default(true)
+  fechaCreacion           DateTime                  @default(now()) @map("fecha_creacion")
+  fechaActualizacion      DateTime                  @default(now()) @map("fecha_actualizacion")
+  categoria               CatCategoria              @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  subcategoria            CatSubcategoria?          @relation(fields: [subcategoriaId], references: [id], onDelete: SetNull)
+  marca                   CatMarca?                 @relation(fields: [marcaId], references: [id], onDelete: SetNull)
+  unidadMedida            CatUnidadMedida?          @relation(fields: [unidadMedidaId], references: [id], onDelete: SetNull)
+  creadoPorUser           SegUsuario?               @relation("ProductoCreador", fields: [creadoPor], references: [id], onDelete: SetNull)
+  catImagenesProducto     CatImagenProducto[]
+  catProductoAtributo     CatProductoAtributo[]
+  catProductoEtiqueta     CatProductoEtiqueta[]
+  invStockProducto        InvStockProducto?
+  ordItemsOrden           OrdItemOrden[]
+  cliResenasProducto      CliResenaProducto[]
+  cliItemListaDeseo       CliItemListaDeseo[]
+  invMovimientoInventario InvMovimientoInventario[]
+  invDetalleOrdenCompra   InvDetalleOrdenCompra[]
+  OrdItemCarrito          OrdItemCarrito[]
+
+  @@map("cat_productos")
+}
+
+model CatImagenProducto {
+  id            Int         @id @default(autoincrement())
+  productoId    Int         @map("producto_id")
+  urlImagen     String      @map("url_imagen") @db.VarChar(500)
+  orden         Int         @default(0)
+  fechaCreacion DateTime    @default(now()) @map("fecha_creacion")
+  producto      CatProducto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  @@map("cat_imagenes_producto")
+}
+
+model CatAtributo {
+  id      Int                @id @default(autoincrement())
+  nombre  String             @db.VarChar(100)
+  valores CatValorAtributo[]
+
+  @@map("cat_atributos")
+}
+
+model CatValorAtributo {
+  id         Int                   @id @default(autoincrement())
+  atributoId Int                   @map("atributo_id")
+  valor      String                @db.VarChar(100)
+  atributo   CatAtributo           @relation(fields: [atributoId], references: [id], onDelete: Cascade)
+  productos  CatProductoAtributo[]
+
+  @@unique([atributoId, valor])
+  @@map("cat_valores_atributo")
+}
+
+model CatProductoAtributo {
+  productoId      Int              @map("producto_id")
+  valorAtributoId Int              @map("valor_atributo_id")
+  producto        CatProducto      @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  valorAtributo   CatValorAtributo @relation(fields: [valorAtributoId], references: [id], onDelete: Cascade)
+
+  @@id([productoId, valorAtributoId])
+  @@map("cat_producto_atributo")
+}
+
+model CatEtiqueta {
+  id        Int                   @id @default(autoincrement())
+  nombre    String                @unique @db.VarChar(50)
+  productos CatProductoEtiqueta[]
+
+  @@map("cat_etiquetas")
+}
+
+model CatProductoEtiqueta {
+  productoId Int         @map("producto_id")
+  etiquetaId Int         @map("etiqueta_id")
+  producto   CatProducto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  etiqueta   CatEtiqueta @relation(fields: [etiquetaId], references: [id], onDelete: Cascade)
+
+  @@id([productoId, etiquetaId])
+  @@map("cat_producto_etiqueta")
+}
+
+// === CLIENTES ===
+model CliCliente {
+  id                 Int                 @id @default(autoincrement())
+  usuarioId          Int                 @unique @map("usuario_id")
+  tipoDocumento      String?             @map("tipo_documento") @db.VarChar(20)
+  numeroDocumento    String?             @unique @map("numero_documento") @db.VarChar(20)
+  razonSocial        String?             @map("razon_social") @db.VarChar(200)
+  telefono           String?             @db.VarChar(20)
+  segmento           String              @default("nuevo") @db.VarChar(20)
+  activo             Boolean             @default(true)
+  fechaCreacion      DateTime            @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime            @default(now()) @map("fecha_actualizacion")
+  usuario            SegUsuario          @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  cliDirecciones     CliDireccion[]
+  cliListasDeseos    CliListaDeseos[]
+  cliResenasProducto CliResenaProducto[]
+  ordOrdenes         OrdOrden[]
+  OrdCarrito         OrdCarrito[]
+
+  @@map("cli_clientes")
+}
+
+model CliDireccion {
+  id            Int        @id @default(autoincrement())
+  clienteId     Int        @map("cliente_id")
+  alias         String?    @db.VarChar(50)
+  direccion     String     @db.Text
+  ciudad        String?    @db.VarChar(100)
+  esPrincipal   Boolean    @default(false)
+  fechaCreacion DateTime   @default(now()) @map("fecha_creacion")
+  cliente       CliCliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@map("cli_direcciones")
+}
+
+model CliListaDeseos {
+  id            Int                 @id @default(autoincrement())
+  clienteId     Int                 @map("cliente_id")
+  nombre        String              @default("Principal") @db.VarChar(50)
+  fechaCreacion DateTime            @default(now()) @map("fecha_creacion")
+  cliente       CliCliente          @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  items         CliItemListaDeseo[]
+
+  @@map("cli_lista_deseos")
+}
+
+model CliItemListaDeseo {
+  listaDeseoId  Int            @map("lista_deseo_id")
+  productoId    Int            @map("producto_id")
+  listaDeseo    CliListaDeseos @relation(fields: [listaDeseoId], references: [id], onDelete: Cascade)
+  producto      CatProducto    @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  fechaAgregado DateTime       @default(now()) @map("fecha_agregado")
+
+  @@unique([listaDeseoId, productoId])
+  @@map("cli_items_lista_deseos")
+}
+
+model CliResenaProducto {
+  id            Int         @id @default(autoincrement())
+  productoId    Int         @map("producto_id")
+  clienteId     Int         @map("cliente_id")
+  calificacion  Int
+  comentario    String?     @db.Text
+  activo        Boolean     @default(true)
+  fechaCreacion DateTime    @default(now()) @map("fecha_creacion")
+  producto      CatProducto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  cliente       CliCliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@map("cli_resenas_producto")
+}
+
+// === INVENTARIO Y PROVEEDORES ===
+model InvProveedor {
+  id                 Int              @id @default(autoincrement())
+  ruc                String           @unique @db.VarChar(20)
+  razonSocial        String           @map("razon_social") @db.VarChar(200)
+  contacto           String?          @db.VarChar(100)
+  activo             Boolean          @default(true)
+  fechaCreacion      DateTime         @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime         @default(now()) @map("fecha_actualizacion")
+  invOrdenesCompra   InvOrdenCompra[]
+
+  @@map("inv_proveedores")
+}
+
+model InvStockProducto {
+  id                       Int                       @id @default(autoincrement())
+  productoId               Int                       @unique @map("producto_id")
+  stockFisico              Int                       @default(0) @map("stock_fisico")
+  stockReservado           Int                       @default(0) @map("stock_reservado")
+  stockMinimo              Int                       @default(5) @map("stock_minimo")
+  fechaActualizacion       DateTime                  @default(now()) @map("fecha_actualizacion")
+  producto                 CatProducto               @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  invMovimientosInventario InvMovimientoInventario[]
+
+  @@map("inv_stock_producto")
+}
+
+model InvMovimientoInventario {
+  id             Int               @id @default(autoincrement())
+  productoId     Int               @map("producto_id")
+  tipoMovimiento String            @map("tipo_movimiento") @db.VarChar(20)
+  cantidad       Int
+  motivo         String?           @db.VarChar(100)
+  referenciaId   Int?              @map("referencia_id")
+  creadoPor      Int?              @map("creado_por")
+  fechaCreacion  DateTime          @default(now()) @map("fecha_creacion")
+  producto       CatProducto       @relation(fields: [productoId], references: [id], onDelete: Cascade, map: "inv_mov_inv_prod_fkey")
+  creadoPorUser  SegUsuario?       @relation(fields: [creadoPor], references: [id], onDelete: SetNull)
+  stockProducto  InvStockProducto? @relation(fields: [productoId], references: [productoId], onDelete: Cascade, map: "inv_mov_inv_stock_fkey")
+
+  @@map("inv_movimientos_inventario")
+}
+
+model InvOrdenCompra {
+  id            Int                     @id @default(autoincrement())
+  proveedorId   Int                     @map("proveedor_id")
+  estado        String                  @default("pendiente") @db.VarChar(20)
+  creadoPor     Int?                    @map("creado_por")
+  fechaCreacion DateTime                @default(now()) @map("fecha_creacion")
+  proveedor     InvProveedor            @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
+  detalles      InvDetalleOrdenCompra[]
+
+  @@map("inv_ordenes_compra")
+}
+
+model InvDetalleOrdenCompra {
+  ordenCompraId  Int            @map("orden_compra_id")
+  productoId     Int            @map("producto_id")
+  cantidadPedida Int            @map("cantidad_pedida")
+  costoUnitario  Decimal        @map("costo_unitario") @db.Decimal(12, 2)
+  ordenCompra    InvOrdenCompra @relation(fields: [ordenCompraId], references: [id], onDelete: Cascade)
+  producto       CatProducto    @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  @@id([ordenCompraId, productoId])
+  @@map("inv_detalle_orden_compra")
+}
+
+// === ÓRDENES ===
+model OrdMetodoEnvio {
+  id         Int        @id @default(autoincrement())
+  nombre     String     @db.VarChar(50)
+  costoBase  Decimal    @default(0) @map("costo_base") @db.Decimal(10, 2)
+  activo     Boolean    @default(true)
+  ordOrdenes OrdOrden[]
+
+  @@map("ord_metodos_envio")
+}
+
+model OrdEstadoOrden {
+  id         Int                  @id @default(autoincrement())
+  nombre     String               @unique @db.VarChar(50)
+  historial  OrdHistorialEstado[]
+  ordOrdenes OrdOrden[]
+
+  @@map("ord_estados_orden")
+}
+
+model OrdOrden {
+  id                 Int                  @id @default(autoincrement())
+  clienteId          Int                  @map("cliente_id")
+  codigoOrden        String               @unique @map("codigo_orden") @db.VarChar(20)
+  estadoId           Int                  @map("estado_id")
+  metodoEnvioId      Int?                 @map("metodo_envio_id")
+  subtotal           Decimal              @db.Decimal(12, 2)
+  impuestoIgv        Decimal              @default(0) @map("impuesto_igv") @db.Decimal(12, 2)
+  costoEnvio         Decimal              @default(0) @map("costo_envio") @db.Decimal(12, 2)
+  total              Decimal              @db.Decimal(12, 2)
+  fechaCreacion      DateTime             @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime             @default(now()) @map("fecha_actualizacion")
+  cliente            CliCliente           @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  estado             OrdEstadoOrden       @relation(fields: [estadoId], references: [id])
+  metodoEnvio        OrdMetodoEnvio?      @relation(fields: [metodoEnvioId], references: [id])
+  items              OrdItemOrden[]
+  direccionesEnvio   OrdDireccionEnvio[]
+  pagos              OrdPago[]
+  historial          OrdHistorialEstado[]
+
+  @@map("ord_ordenes")
+}
+
+model OrdItemOrden {
+  id             Int         @id @default(autoincrement())
+  ordenId        Int         @map("orden_id")
+  productoId     Int         @map("producto_id")
+  productoNombre String      @map("producto_nombre") @db.VarChar(200)
+  sku            String      @db.VarChar(20)
+  cantidad       Int
+  precioUnitario Decimal     @map("precio_unitario") @db.Decimal(12, 2)
+  subtotal       Decimal     @db.Decimal(12, 2)
+  orden          OrdOrden    @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  producto       CatProducto @relation(fields: [productoId], references: [id], onDelete: Restrict)
+
+  @@map("ord_items_orden")
+}
+
+model OrdDireccionEnvio {
+  id                 Int      @id @default(autoincrement())
+  ordenId            Int      @unique @map("orden_id")
+  alias              String?  @db.VarChar(50)
+  direccion          String   @db.Text
+  ciudad             String?  @db.VarChar(100)
+  destinatarioNombre String?  @map("destinatario_nombre") @db.VarChar(100)
+  orden              OrdOrden @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+
+  @@map("ord_direcciones_envio")
+}
+
+model OrdPago {
+  id            Int                  @id @default(autoincrement())
+  ordenId       Int                  @unique @map("orden_id")
+  metodo        String               @db.VarChar(50)
+  estado        String               @default("pendiente") @db.VarChar(20)
+  orden         OrdOrden             @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  transacciones OrdTransaccionPago[]
+
+  @@map("ord_pagos")
+}
+
+model OrdTransaccionPago {
+  id            Int      @id @default(autoincrement())
+  pagoId        Int      @map("pago_id")
+  estado        String   @db.VarChar(20)
+  monto         Decimal  @db.Decimal(12, 2)
+  respuestaJson Json?    @map("respuesta_json") @db.JsonB
+  fechaCreacion DateTime @default(now()) @map("fecha_creacion")
+  pago          OrdPago  @relation(fields: [pagoId], references: [id], onDelete: Cascade)
+
+  @@map("ord_transacciones_pago")
+}
+
+model OrdHistorialEstado {
+  id            Int            @id @default(autoincrement())
+  ordenId       Int            @map("orden_id")
+  estadoId      Int            @map("estado_id")
+  comentario    String?        @db.Text
+  creadoPor     Int?           @map("creado_por")
+  fechaCreacion DateTime       @default(now()) @map("fecha_creacion")
+  orden         OrdOrden       @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  estado        OrdEstadoOrden @relation(fields: [estadoId], references: [id])
+
+  @@map("ord_historial_estados")
+}
+
+// === CARRITO DE COMPRAS ===
+model OrdCarrito {
+  id                 Int              @id @default(autoincrement())
+  clienteId          Int              @map("cliente_id")
+  fechaCreacion      DateTime         @default(now()) @map("fecha_creacion")
+  fechaActualizacion DateTime         @default(now()) @map("fecha_actualizacion")
+  cliente            CliCliente       @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  items              OrdItemCarrito[]
+
+  @@map("ord_carritos")
+}
+
+model OrdItemCarrito {
+  id            Int         @id @default(autoincrement())
+  carritoId     Int         @map("carrito_id")
+  productoId    Int         @map("producto_id")
+  cantidad      Int         @default(1)
+  fechaAgregado DateTime    @default(now()) @map("fecha_agregado")
+  carrito       OrdCarrito  @relation(fields: [carritoId], references: [id], onDelete: Cascade)
+  producto      CatProducto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  @@unique([carritoId, productoId])
+  @@map("ord_items_carrito")
+}

@@ -1,0 +1,24 @@
+{
+    "name": "stockflow-monorepo",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+        "dev:server": "cd backend && npm run dev",
+        "dev:client": "cd frontend && npm run dev",
+        "build": "cd frontend && npm run build",
+        "start": "cd backend && npm run start",
+        "db:migrate": "cd backend && npx prisma migrate dev",
+        "db:seed": "cd backend && npx prisma db seed",
+        "db:studio": "cd backend && npx prisma studio"
+    },
+    "devDependencies": {
+        "autoprefixer": "^10.5.0",
+        "concurrently": "^8.2.2",
+        "postcss": "^8.5.12",
+        "tailwindcss": "^4.2.4"
+    },
+    "prisma": {
+        "seed": "ts-node prisma/seed.ts"
+    }
+}
