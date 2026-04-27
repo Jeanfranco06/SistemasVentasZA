@@ -15,7 +15,7 @@
 4. Configura:
    - **Root Directory**: `backend`
    - **Runtime**: `Node`
-   - **Build Command**: `npm install && npx prisma generate`
+   - **Build Command**: `npm install && npx prisma generate && npm run build`
    - **Start Command**: `npm start`
 5. En **Environment** agrega:
    ```
