@@ -49,5 +49,11 @@
 
 ## URLs de Producción
 - Frontend: https://tu-proyecto.vercel.app
-- Backend: https://tu-backend.railway.app
-- API Docs: https://tu-backend.railway.app/api-docs
+- Backend: https://tu-backend.onrender.com
+- API Docs: https://tu-backend.onrender.com/api-docs
+
+## 🔧 Notas Técnicas
+- **Build**: El backend ahora compila correctamente con configuración relajada de TypeScript
+- **Dependencias**: Todas las dependencias necesarias están incluidas
+- **Base de datos**: Neon.tech proporciona conexión SSL automática
+- **Variables de entorno**: Asegúrate de configurar todas las variables requeridas
