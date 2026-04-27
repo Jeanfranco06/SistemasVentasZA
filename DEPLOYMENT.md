@@ -3,32 +3,49 @@
 **Repositorio:** https://github.com/Jeanfranco06/SistemasVentasZA.git
 
 ## Base de Datos
-1. Crea una base de datos PostgreSQL en Neon.tech (gratuito)
-2. Copia la URL de conexión
+1. Usa Neon.tech (ya configurado):
+   ```
+   DATABASE_URL=postgresql://neondb_owner:npg_v8srA7klHhyg@ep-bold-band-an8xrzvg.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require
+   ```
 
-## Backend (Railway)
-1. Ve a https://railway.app y crea una cuenta
-2. Conecta tu repositorio GitHub
-3. Crea un nuevo proyecto desde el repositorio
-4. En las variables de entorno, agrega:
-   - `DATABASE_URL`: URL de Neon
-   - `NODE_ENV`: production
-   - `JWT_SECRET`: clave secreta para JWT
-   - `JWT_REFRESH_SECRET`: clave secreta para refresh
-   - `PORT`: 4000 (o automático)
-5. Railway detectará automáticamente el build y start
-6. Una vez desplegado, ejecuta las migraciones:
-   - En la consola de Railway: `npx prisma migrate deploy`
-7. Ejecuta el seed si es necesario: `npx prisma db seed`
+## Backend (Render - Alternativa a Railway)
+1. Ve a [render.com](https://render.com) y crea una cuenta gratuita
+2. **"New"** → **"Web Service"**
+3. Conecta tu repositorio GitHub: `Jeanfranco06/SistemasVentasZA`
+4. Configura:
+   - **Root Directory**: `backend`
+   - **Runtime**: `Node`
+   - **Build Command**: `npm install && npx prisma generate`
+   - **Start Command**: `npm start`
+5. En **Environment** agrega:
+   ```
+   DATABASE_URL=postgresql://neondb_owner:npg_v8srA7klHhyg@ep-bold-band-an8xrzvg.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require
+   NODE_ENV=production
+   JWT_SECRET=tu_clave_jwt_segura
+   JWT_REFRESH_SECRET=tu_clave_refresh_segura
+   PORT=10000
+   ```
+6. **Create Web Service**
+7. Una vez desplegado, ve a la **Shell** del servicio
+8. Ejecuta las migraciones:
+   ```bash
+   npx prisma migrate deploy
+   npx prisma db seed
+   ```
 
 ## Frontend (Vercel)
-1. Ve a https://vercel.com y crea una cuenta
-2. Instala Vercel CLI: `npm i -g vercel`
-3. En la carpeta frontend: `vercel`
-4. Sigue los pasos para conectar el repositorio
-5. En las variables de entorno de Vercel, agrega:
-   - `VITE_API_URL`: URL del backend desplegado (ej: https://tu-backend.railway.app/api/v1)
-6. Despliega
+1. Ve a [vercel.com](https://vercel.com) y crea una cuenta
+2. **"New Project"** → Importar desde GitHub
+3. Seleccionar `Jeanfranco06/SistemasVentasZA`
+4. Configurar:
+   - **Root Directory**: `frontend`
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+5. En **Environment Variables** agregar:
+   ```
+   VITE_API_URL=https://tu-backend-render.onrender.com/api/v1
+   ```
+6. **Deploy**
 
 ## URLs de Producción
 - Frontend: https://tu-proyecto.vercel.app
