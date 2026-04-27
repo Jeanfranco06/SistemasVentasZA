@@ -1,9 +1,8 @@
 // backend/src/controllers/orden.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { AppError } from '../utils/AppError';
-import { confirmarPagoYDescontarStock } from '../services/orden.service';
-import { sincronizarCarritoBD } from '../services/carrito.service';
+import { AppError } from '../utils/AppError.js';
+import { confirmarPagoYDescontarStock } from '../services/orden.service.js';
 
 
 

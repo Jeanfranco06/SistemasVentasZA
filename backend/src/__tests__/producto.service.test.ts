@@ -1,7 +1,7 @@
 // backend/src/__tests__/producto.service.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import { validarCoherenciaSku } from '../services/producto.service';
-import prisma from '../lib/prisma';
+import { validarCoherenciaSku } from '../services/producto.service.js';
+import prisma from '../lib/prisma.js';
 
 vi.mock('../lib/prisma', () => ({
   default: {

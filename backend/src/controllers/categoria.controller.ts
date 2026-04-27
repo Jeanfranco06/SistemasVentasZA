@@ -1,7 +1,7 @@
 // backend/src/controllers/categoria.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { AppError } from '../utils/AppError';
+import { AppError } from '../utils/AppError.js';
 const prisma = new PrismaClient();
 
 export const listarCategoriasAdmin = async (req: Request, res: Response, next: NextFunction) => {

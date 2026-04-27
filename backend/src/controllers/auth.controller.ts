@@ -1,9 +1,9 @@
 // backend/src/controllers/auth.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcrypt';
-import prisma from '../lib/prisma';
-import { AppError } from '../utils/AppError';
-import { generarTokens } from '../config/jwt';
+import prisma from '../lib/prisma.js';
+import { AppError } from '../utils/AppError.js';
+import { generarTokens } from '../config/jwt.js';
 
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {

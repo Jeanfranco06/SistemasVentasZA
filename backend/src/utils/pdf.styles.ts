@@ -17,7 +17,7 @@ interface TableOptions {
   headers: string[];
   rows: any[][];
   columnWidths: number[];
-  doc: PDFDocument;
+  doc: typeof PDFDocument.prototype;
   startYAfterTable?: (finalY: number) => void;
 }
 

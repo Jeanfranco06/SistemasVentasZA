@@ -11,14 +11,14 @@ import { proteger, requerirRol } from './middlewares/auth.middleware.js';
 import { login, registroCliente } from './controllers/auth.controller.js';
 import { obtenerSiguienteSku, crearProducto, listarProductosTienda, listarProductosAdmin, obtenerProductoPorId, actualizarProducto, eliminarProducto, obtenerStockProductos, cambiarEstadoProducto } from './controllers/producto.controller.js';
 import { agregarAlCarrito, checkoutCompleto, sincronizarCarritoBD, getMisOrdenes, cambiarEstadoOrden, listarOrdenesAdmin } from './controllers/orden.controller.js';
-import { analisisABC, analisisRFM } from './controllers/estadisticas.controller.js';
+import { analisisABC, analisisRFM, resumenEstadisticas } from './controllers/estadisticas.controller.js';
 import {
   dashboardInventario, crearProductoDraft, publicarProducto, descontinuarProducto,
   ajustarStock, historialStock, crearOrdenCompra, recibirMercaderia,
   listarProveedores, crearProveedor, actualizarProveedor, eliminarProveedor
 } from './controllers/inventario.controller.js';
 import {
-  dashboardVentas, listarOrdenesVentas, cambiarEstadoOrden,
+  dashboardVentas, listarOrdenesVentas,
   obtenerHistorialOrden, perfilCliente
 } from './controllers/ventas.controller.js';
 import { listarCategoriasAdmin, crearCategoria, actualizarCategoria, eliminarCategoria, listarCategoriasPublicas } from './controllers/categoria.controller.js';
@@ -28,7 +28,7 @@ import {
   repRentabilidadProducto, repVentasCategoria, repComportamientoCarritos, 
   repComportamientoClientes, repRotacionInventario, repIngresosVsCostos
 } from './controllers/reporte.controller.js';
-import {  getMisDeseos, toggleDeseo, getMisDirecciones, crearDireccion } from './controllers/cliente.controller'; // <--- AÑADE ESTA LÍNEA
+import {  getMisDeseos, toggleDeseo, getMisDirecciones, crearDireccion } from './controllers/cliente.controller.js'; // <--- AÑADE ESTA LÍNEA
 
 const app = express();
 
@@ -131,6 +131,7 @@ app.post('/api/v1/clientes/deseos', proteger, toggleDeseo);
 app.get('/api/v1/clientes/direcciones', proteger, getMisDirecciones);
 app.post('/api/v1/clientes/direcciones', proteger, crearDireccion);
 // Estadísticas Descriptivas (Requiere rol Gerente/Admin)
+app.get('/api/v1/estadisticas/resumen', resumenEstadisticas);
 app.get('/api/v1/estadisticas/abc', analisisABC);
 app.get('/api/v1/estadisticas/rfm', analisisRFM);
 

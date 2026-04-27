@@ -1,9 +1,9 @@
 // backend/src/controllers/producto.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import prisma from '../lib/prisma';
-import { AppError } from '../utils/AppError';
-import { generarSiguienteSku, validarCoherenciaSku } from '../services/producto.service';
-import { productoSchema } from '../schemas/producto.schema';
+import prisma from '../lib/prisma.js';
+import { AppError } from '../utils/AppError.js';
+import { generarSiguienteSku, validarCoherenciaSku } from '../services/producto.service.js';
+import { productoSchema } from '../schemas/producto.schema.js';
 
 const sincronizarImagenPrincipal = async (productoId: number, imagenUrl?: string) => {
   if (!imagenUrl) return;

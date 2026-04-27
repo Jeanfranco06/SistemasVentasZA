@@ -1,6 +1,6 @@
 // backend/src/config/jwt.ts
 import jwt from 'jsonwebtoken';
-import { environment } from './env';
+import { environment } from './env.js';
 
 export const generarTokens = (usuarioId: number, roles: string[]) => {
   const payload = { id: usuarioId, roles };

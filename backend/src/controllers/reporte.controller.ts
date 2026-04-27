@@ -2,7 +2,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import PDFDocument from 'pdfkit';
-import { drawTable, formatPen, formatDate } from '../utils/pdf.styles';
+import { drawTable, formatPen, formatDate } from '../utils/pdf.styles.js';
 
 const prisma = new PrismaClient();
 
@@ -17,7 +17,7 @@ const initPdf = (res: Response, titulo: string) => {
   return doc;
 };
 
-const drawHeader = (doc: PDFDocument, titulo: string, filtros?: string) => {
+const drawHeader = (doc: typeof PDFDocument.prototype, titulo: string, filtros?: string) => {
   doc.rect(0, 0, doc.page.width, 60).fill('#1e3a5f');
   doc.fillColor('white').fontSize(18).font('Helvetica-Bold').text('StockFlow', 50, 20);
   doc.fontSize(10).font('Helvetica').text(`Fecha: ${new Date().toLocaleDateString('es-PE')}`, 350, 25);
@@ -26,7 +26,7 @@ const drawHeader = (doc: PDFDocument, titulo: string, filtros?: string) => {
   doc.moveTo(50, 115).lineTo(doc.page.width - 50, 115).stroke('#cccccc');
 };
 
-const drawFooter = (doc: PDFDocument) => {
+const drawFooter = (doc: typeof PDFDocument.prototype) => {
   const pages = doc.bufferedPageRange();
   for (let i = 0; i < pages.count; i++) {
     doc.switchToPage(i);
@@ -49,7 +49,7 @@ const generateSafeReport = async (
   headers: string[],
   rowMapper: (row: any) => any[],
   columnWidths: number[],
-  afterTableFn?: (doc: PDFDocument, data: any[]) => void
+  afterTableFn?: (doc: typeof PDFDocument.prototype, data: any[]) => void
 ) => {
   try {
     // 1. EJECUTAR CONSULTA A BD (Puede fallar de forma segura aquí)

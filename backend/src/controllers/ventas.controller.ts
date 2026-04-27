@@ -1,7 +1,7 @@
 // backend/src/controllers/ventas.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import prisma from '../lib/prisma';
-import { AppError } from '../utils/AppError';
+import prisma from '../lib/prisma.js';
+import { AppError } from '../utils/AppError.js';
 
 export const dashboardVentas = async (req: Request, res: Response, next: NextFunction) => {
   try {

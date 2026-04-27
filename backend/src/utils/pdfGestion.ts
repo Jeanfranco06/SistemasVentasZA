@@ -2,7 +2,7 @@
 import puppeteer from 'puppeteer';
 
 export const generarPdfGestionConGrafico = async (config: { titulo: string; htmlCuerpo: string; imagenBase64: string }) => {
-  const browser = await puppeteer.launch({ headless: 'new' });
+  const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
 
   const htmlCompleto = `

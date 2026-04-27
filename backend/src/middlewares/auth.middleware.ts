@@ -1,8 +1,8 @@
 // backend/src/middlewares/auth.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { AppError } from '../utils/AppError';
-import { environment } from '../config/env';
+import { AppError } from '../utils/AppError.js';
+import { environment } from '../config/env.js';
 
 interface JwtPayload {
   id: number;

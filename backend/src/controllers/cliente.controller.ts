@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { AppError } from '../utils/AppError';
+import { AppError } from '../utils/AppError.js';
 const prisma = new PrismaClient();
 
 // ==========================================
@@ -64,7 +64,7 @@ export const getMisDeseos = async (req: Request, res: Response, next: NextFuncti
 
 
 // Toggle (Agregar/Quitar) usando UPSERT (La solución definitiva contra el 500)
-export const toggleDeseo = async (req: Request, res: Response, NextFunction) => {
+export const toggleDeseo = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const usuarioId = req.usuario?.id;
       if (!usuarioId) throw new AppError('No autenticado', 401);
@@ -128,6 +128,8 @@ export const getMisDirecciones = async (req: Request, res: Response, next: NextF
 export const crearDireccion = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const usuarioId = req.usuario?.id;
+    if (!usuarioId) throw new AppError('No autenticado', 401);
+    
     let cliente = await prisma.cliCliente.findUnique({ where: { usuarioId } });
     if (!cliente) cliente = await prisma.cliCliente.create({ data: { usuarioId, razonSocial: 'Cliente' } });
 

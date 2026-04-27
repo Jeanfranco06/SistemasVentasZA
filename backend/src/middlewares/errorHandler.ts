@@ -2,7 +2,7 @@
 import { Prisma } from '@prisma/client';
 import type { Request } from 'express';
 import { Response } from 'express';
-import { AppError } from '../utils/AppError';
+import { AppError } from '../utils/AppError.js';
 
 export const globalErrorHandler = (err: any, req: Request, res: Response, next: any) => {
   if (err instanceof AppError) {
