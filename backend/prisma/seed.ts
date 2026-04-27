@@ -193,6 +193,16 @@ async function main() {
     create: { nombre: 'en_proceso' }
   });
   await prisma.ordEstadoOrden.upsert({
+    where: { nombre: 'enviada' },
+    update: {},
+    create: { nombre: 'enviada' }
+  });
+  await prisma.ordEstadoOrden.upsert({
+    where: { nombre: 'entregada' },
+    update: {},
+    create: { nombre: 'entregada' }
+  });
+  await prisma.ordEstadoOrden.upsert({
     where: { nombre: 'cancelada' },
     update: {},
     create: { nombre: 'cancelada' }

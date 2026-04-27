@@ -8,6 +8,7 @@ import swaggerUi from 'swagger-ui-express';
 import { globalErrorHandler } from './middlewares/errorHandler.js';
 import prisma from './lib/prisma.js';
 import { proteger, requerirRol } from './middlewares/auth.middleware.js';
+import { environment } from './config/env.js';
 import { login, registroCliente } from './controllers/auth.controller.js';
 import { obtenerSiguienteSku, crearProducto, listarProductosTienda, listarProductosAdmin, obtenerProductoPorId, actualizarProducto, eliminarProducto, obtenerStockProductos, cambiarEstadoProducto } from './controllers/producto.controller.js';
 import { agregarAlCarrito, checkoutCompleto, sincronizarCarritoBD, getMisOrdenes, cambiarEstadoOrden, listarOrdenesAdmin } from './controllers/orden.controller.js';
@@ -36,7 +37,9 @@ const app = express();
 app.use(helmet());
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+if (environment.NODE_ENV === 'production') {
+  app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+}
 
 // Health Check
 app.get('/health', async (req, res) => {

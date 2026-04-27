@@ -206,21 +206,49 @@ export const getMisOrdenes = async (req: Request, res: Response, next: NextFunct
 
 export const cambiarEstadoOrden = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
-    const { nuevoEstadoId, comentario } = req.body;
+    const ordenIdParam = req.params.ordenId ?? req.params.id;
+    const ordenId = Number(ordenIdParam);
+    if (isNaN(ordenId)) {
+      throw new AppError('ID de orden inválido', 400);
+    }
+
+    const { nuevoEstadoId, nuevoEstado, comentario } = req.body;
+
+    let estadoId: number;
+
+    if (nuevoEstadoId) {
+      estadoId = Number(nuevoEstadoId);
+      if (isNaN(estadoId)) {
+        throw new AppError('nuevoEstadoId inválido', 400);
+      }
+    } else if (nuevoEstado) {
+      const estado = await prisma.ordEstadoOrden.findUnique({
+        where: { nombre: nuevoEstado }
+      });
+      if (!estado) {
+        throw new AppError(`Estado de orden '${nuevoEstado}' no encontrado`, 400);
+      }
+      estadoId = estado.id;
+    } else {
+      throw new AppError('Debe proporcionar nuevoEstadoId o nuevoEstado', 400);
+    }
+
+    if (!req.usuario) {
+      throw new AppError('No autenticado', 401);
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.ordOrden.update({
-        where: { id: Number(id) },
-        data: { estadoId: nuevoEstadoId, fechaActualizacion: new Date() }
+        where: { id: ordenId },
+        data: { estadoId, fechaActualizacion: new Date() }
       });
 
       await tx.ordHistorialEstado.create({
         data: {
-          ordenId: Number(id),
-          estadoId: nuevoEstadoId,
+          ordenId,
+          estadoId,
           comentario,
-          creadoPor: req.usuario!.id
+          creadoPor: req.usuario.id
         }
       });
     });
