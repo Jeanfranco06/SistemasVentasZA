@@ -4,6 +4,8 @@ import prisma from '../lib/prisma.js';
 import { AppError } from '../utils/AppError.js';
 import { generarSiguienteSku, validarCoherenciaSku } from '../services/producto.service.js';
 import { productoSchema } from '../schemas/producto.schema.js';
+import fs from 'fs';
+import path from 'path';
 
 const sincronizarImagenPrincipal = async (productoId: number, imagenUrl?: string) => {
   if (!imagenUrl) return;
@@ -23,6 +25,216 @@ const sincronizarImagenPrincipal = async (productoId: number, imagenUrl?: string
   await prisma.catImagenProducto.create({
     data: { productoId, urlImagen: imagenUrl, orden: 0 }
   });
+};
+
+// Controlador para subir imágenes de producto
+export const subirImagenesProducto = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const productoId = Number(req.params.id);
+    
+    // Verificar que el producto existe
+    const producto = await prisma.catProducto.findUnique({
+      where: { id: productoId }
+    });
+    
+    if (!producto) {
+      throw new AppError('Producto no encontrado', 404);
+    }
+
+    if (!req.files || (Array.isArray(req.files) && req.files.length === 0)) {
+      throw new AppError('No se proporcionaron imágenes', 400);
+    }
+
+    const files = Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
+    
+    // Obtener el orden máximo actual
+    const ultimaImagen = await prisma.catImagenProducto.findFirst({
+      where: { productoId },
+      orderBy: { orden: 'desc' }
+    });
+    
+    const ordenInicial = ultimaImagen ? ultimaImagen.orden + 1 : 0;
+
+    // Crear registros de imágenes en la base de datos
+    const imagenesCreadas = await Promise.all(
+      files.map((file: any, index) => {
+        const urlImagen = `/uploads/productos/${file.filename}`;
+        return prisma.catImagenProducto.create({
+          data: {
+            productoId,
+            urlImagen,
+            orden: ordenInicial + index
+          }
+        });
+      })
+    );
+
+    // Si no hay imagen principal (orden 0), establecer la primera como principal
+    if (!ultimaImagen && imagenesCreadas.length > 0) {
+      await prisma.catImagenProducto.update({
+        where: { id: imagenesCreadas[0].id },
+        data: { orden: 0 }
+      });
+      
+      // Actualizar también el campo imagenUrl del producto
+      await prisma.catProducto.update({
+        where: { id: productoId },
+        data: { imagenUrl: imagenesCreadas[0].urlImagen }
+      });
+    }
+
+    res.json({
+      success: true,
+      data: imagenesCreadas,
+      message: `${imagenesCreadas.length} imagen(es) subida(s) correctamente`
+    });
+  } catch (error) {
+    // Eliminar archivos subidos en caso de error
+    if (req.files) {
+      const files = Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
+      files.forEach((file: any) => {
+        const filePath = path.join(process.cwd(), 'uploads', 'productos', file.filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      });
+    }
+    next(error);
+  }
+};
+
+// Controlador para obtener imágenes de un producto
+export const obtenerImagenesProducto = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const productoId = Number(req.params.id);
+    
+    const imagenes = await prisma.catImagenProducto.findMany({
+      where: { productoId },
+      orderBy: { orden: 'asc' }
+    });
+
+    res.json({
+      success: true,
+      data: imagenes,
+      message: 'Imágenes obtenidas correctamente'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Controlador para eliminar una imagen de producto
+export const eliminarImagenProducto = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id, imagenId } = req.params;
+    const productoId = Number(id);
+    const imagenIdNum = Number(imagenId);
+
+    // Verificar que la imagen existe y pertenece al producto
+    const imagen = await prisma.catImagenProducto.findFirst({
+      where: { id: imagenIdNum, productoId }
+    });
+
+    if (!imagen) {
+      throw new AppError('Imagen no encontrada o no pertenece al producto', 404);
+    }
+
+    // Eliminar archivo físico
+    const filePath = path.join(process.cwd(), imagen.urlImagen);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    // Eliminar registro de la base de datos
+    await prisma.catImagenProducto.delete({
+      where: { id: imagenIdNum }
+    });
+
+    // Reordenar las imágenes restantes
+    const imagenesRestantes = await prisma.catImagenProducto.findMany({
+      where: { productoId },
+      orderBy: { orden: 'asc' }
+    });
+
+    await Promise.all(
+      imagenesRestantes.map((img, index) =>
+        prisma.catImagenProducto.update({
+          where: { id: img.id },
+          data: { orden: index }
+        })
+      )
+    );
+
+    // Si se eliminó la imagen principal (orden 0), actualizar la primera imagen como principal
+    if (imagenesRestantes.length > 0 && imagen.orden === 0) {
+      const nuevaPrincipal = imagenesRestantes[0];
+      await prisma.catImagenProducto.update({
+        where: { id: nuevaPrincipal.id },
+        data: { orden: 0 }
+      });
+      
+      await prisma.catProducto.update({
+        where: { id: productoId },
+        data: { imagenUrl: nuevaPrincipal.urlImagen }
+      });
+    } else if (imagenesRestantes.length === 0) {
+      // Si no quedan imágenes, limpiar el campo imagenUrl del producto
+      await prisma.catProducto.update({
+        where: { id: productoId },
+        data: { imagenUrl: null }
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Imagen eliminada correctamente'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Controlador para establecer imagen principal
+export const establecerImagenPrincipal = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id, imagenId } = req.params;
+    const productoId = Number(id);
+    const imagenIdNum = Number(imagenId);
+
+    // Verificar que la imagen existe y pertenece al producto
+    const imagen = await prisma.catImagenProducto.findFirst({
+      where: { id: imagenIdNum, productoId }
+    });
+
+    if (!imagen) {
+      throw new AppError('Imagen no encontrada o no pertenece al producto', 404);
+    }
+
+    // Actualizar todas las imágenes para que ninguna tenga orden 0
+    await prisma.catImagenProducto.updateMany({
+      where: { productoId },
+      data: { orden: 1 } // Movemos todas a orden 1 o mayor
+    });
+
+    // Establecer la nueva imagen principal con orden 0
+    await prisma.catImagenProducto.update({
+      where: { id: imagenIdNum },
+      data: { orden: 0 }
+    });
+
+    // Actualizar el campo imagenUrl del producto
+    await prisma.catProducto.update({
+      where: { id: productoId },
+      data: { imagenUrl: imagen.urlImagen }
+    });
+
+    res.json({
+      success: true,
+      message: 'Imagen principal establecida correctamente'
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 export const obtenerSiguienteSku = async (req: Request, res: Response, next: NextFunction) => {
@@ -143,7 +355,7 @@ export const listarProductosAdmin = async (req: Request, res: Response, next: Ne
       where,
       include: {
         categoria: { select: { nombre: true } },
-        catImagenesProducto: { where: { orden: 0 }, take: 1 }
+        catImagenesProducto: { orderBy: { orden: 'asc' } } // Incluir todas las imágenes
       },
       orderBy: { fechaCreacion: 'desc' }
     });

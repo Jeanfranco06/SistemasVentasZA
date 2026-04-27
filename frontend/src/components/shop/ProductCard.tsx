@@ -4,6 +4,29 @@ import { useAuthStore } from '@/stores/auth.store';
 import api from '@/services/api';
 import { toast } from 'react-hot-toast';
 
+// Componente interno para manejar imágenes con fallback
+const ImageWithFallback = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
+  const [error, setError] = useState(false);
+  
+  if (error) {
+    return (
+      <div className="text-center text-gray-300">
+        <div className="text-5xl mb-2">🖼️</div>
+        <p className="text-xs">Imagen no disponible</p>
+      </div>
+    );
+  }
+  
+  return (
+    <img 
+      src={src} 
+      alt={alt}
+      className={className}
+      onError={() => setError(true)}
+    />
+  );
+};
+
 interface CardProps {
   producto: any;
   onVerDetalle: (p: any) => void;
@@ -64,6 +87,25 @@ export const ProductoCard = ({ producto, onVerDetalle, cantidadEnCarrito, onAgre
     }
   };
 
+  // Obtener URL de la imagen del producto
+  const getImagenUrl = () => {
+    const imagenes = producto.catImagenesProducto;
+    const imagenPrincipal = imagenes?.find((img: any) => img.orden === 0) || imagenes?.[0];
+    
+    if (!imagenPrincipal) return null;
+    
+    let urlImagen = imagenPrincipal.urlImagen;
+    if (!urlImagen.startsWith('http') && !urlImagen.startsWith('/api')) {
+      const apiBaseUrl = import.meta.env.VITE_API_URL || window.location.origin + '/api/v1';
+      const baseUrl = apiBaseUrl.replace('/api/v1', '');
+      urlImagen = baseUrl + urlImagen;
+    }
+    
+    return urlImagen;
+  };
+
+  const imagenUrl = getImagenUrl();
+
   return (
     <div className="group flex flex-col overflow-hidden transition-all duration-300 hover:shadow-xl border border-gray-100 bg-white rounded-xl h-full">
       
@@ -72,10 +114,18 @@ export const ProductoCard = ({ producto, onVerDetalle, cantidadEnCarrito, onAgre
         className="relative cursor-pointer bg-gray-50 h-52 flex items-center justify-center overflow-hidden"
         onClick={() => onVerDetalle(producto)}
       >
-        <div className="text-center text-gray-300 group-hover:scale-110 transition-transform duration-300">
-          <div className="text-5xl mb-2">🖼️</div>
-          <p className="text-xs">Ver Detalle</p>
-        </div>
+        {imagenUrl ? (
+          <ImageWithFallback 
+            src={imagenUrl} 
+            alt={producto.nombre}
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+          />
+        ) : (
+          <div className="text-center text-gray-300 group-hover:scale-110 transition-transform duration-300">
+            <div className="text-5xl mb-2">🖼️</div>
+            <p className="text-xs">Ver Detalle</p>
+          </div>
+        )}
         
         {/* Botón Corazón con diseño reactivo */}
         <button 

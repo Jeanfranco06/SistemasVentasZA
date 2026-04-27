@@ -10,11 +10,25 @@ interface Props {
   producto: any | null;
 }
 
+// Función auxiliar para obtener URL de imagen
+const getImagenUrl = (urlImagen: string) => {
+  if (!urlImagen) return null;
+  if (urlImagen.startsWith('http') || urlImagen.startsWith('/api')) return urlImagen;
+  const apiBaseUrl = import.meta.env.VITE_API_URL || window.location.origin + '/api/v1';
+  const baseUrl = apiBaseUrl.replace('/api/v1', '');
+  return baseUrl + urlImagen;
+};
+
 export const ProductDetailModal = ({ open, onOpenChange, producto }: Props) => {
   // 1. TODOS LOS HOOKS DEBEN ESTAR ARRIBA, ANTES DE CUALQUIER RETURN
   const [cantidadLocal, setCantidadLocal] = useState(1);
+  const [imagenSeleccionada, setImagenSeleccionada] = useState(0);
   const itemsCarrito = useCartStore(state => state.items);
   const agregarItem = useCartStore(state => state.agregarItem);
+
+  // Obtener imágenes del producto
+  const imagenes = producto?.catImagenesProducto?.sort((a: any, b: any) => a.orden - b.orden) || [];
+  const imagenPrincipal = imagenes.find((img: any) => img.orden === 0) || imagenes[0];
 
   // Calcular valores de forma segura (no crashea si producto es null)
   const cantidadEnCarrito = producto ? (itemsCarrito.find(i => i.productoId === producto.id)?.cantidad || 0) : 0;
@@ -31,6 +45,7 @@ export const ProductDetailModal = ({ open, onOpenChange, producto }: Props) => {
   useEffect(() => {
     if (open) {
       setCantidadLocal(1);
+      setImagenSeleccionada(0);
     }
   }, [open]);
 
@@ -61,11 +76,45 @@ export const ProductDetailModal = ({ open, onOpenChange, producto }: Props) => {
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto p-0">
         <div className="grid grid-cols-1 md:grid-cols-2">
           {/* Imagen */}
-          <div className="bg-gray-100 flex items-center justify-center min-h-[300px] p-8 border-r">
-            <div className="text-center text-gray-400">
-              <div className="text-6xl mb-4">📦</div>
-              <p className="text-sm">Imagen del Producto</p>
-            </div>
+          <div className="bg-gray-50 flex flex-col items-center justify-center min-h-[300px] p-6 border-r">
+            {imagenes.length > 0 ? (
+              <>
+                {/* Imagen principal */}
+                <div className="w-full aspect-square mb-4 overflow-hidden rounded-lg bg-white border">
+                  <img 
+                    src={getImagenUrl(imagenes[imagenSeleccionada]?.urlImagen || imagenPrincipal.urlImagen)}
+                    alt={producto.nombre}
+                    className="w-full h-full object-contain p-4"
+                  />
+                </div>
+                
+                {/* Miniaturas */}
+                {imagenes.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto w-full pb-2">
+                    {imagenes.map((img: any, index: number) => (
+                      <button
+                        key={img.id}
+                        onClick={() => setImagenSeleccionada(index)}
+                        className={`flex-shrink-0 w-16 h-16 rounded border-2 overflow-hidden ${
+                          imagenSeleccionada === index ? 'border-blue-500' : 'border-gray-200'
+                        }`}
+                      >
+                        <img 
+                          src={getImagenUrl(img.urlImagen)}
+                          alt={`Vista ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center text-gray-400">
+                <div className="text-6xl mb-4">📦</div>
+                <p className="text-sm">Imagen no disponible</p>
+              </div>
+            )}
           </div>
 
           {/* Info */}

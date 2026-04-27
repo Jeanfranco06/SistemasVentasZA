@@ -217,15 +217,80 @@ export const repFacturaIndividual = async (req: Request, res: Response) => {
 export const repComprobanteSimplificado = async (req: Request, res: Response) => {
   try {
     const { ordenId } = req.params;
-    const ordenArr: any = await prisma.$queryRawUnsafe(`SELECT o.codigo_orden, o.total, c.razon_social FROM ord_ordenes o JOIN cli_clientes c ON o.cliente_id = c.id WHERE o.id = ${ordenId}`);
-    if (!ordenArr || ordenArr.length === 0) { res.status(404).json({ message: 'Orden no encontrada' }); return; }
+    
+    // Obtener datos completos de la orden
+    const ordenArr: any = await prisma.$queryRawUnsafe(`
+      SELECT o.codigo_orden, o.total, o.subtotal, o.impuesto_igv, o.costo_envio, o.fecha_creacion, 
+             c.razon_social, c.numero_documento, e.nombre as estado
+      FROM ord_ordenes o 
+      JOIN cli_clientes c ON o.cliente_id = c.id 
+      JOIN ord_estados_orden e ON o.estado_id = e.id
+      WHERE o.id = ${ordenId}
+    `);
+    
+    if (!ordenArr || ordenArr.length === 0) { 
+      res.status(404).json({ message: 'Orden no encontrada' }); 
+      return; 
+    }
+    
     const orden = ordenArr[0];
+    
+    // Obtener items de la orden
+    const items: any = await prisma.$queryRawUnsafe(`
+      SELECT producto_nombre, sku, cantidad, precio_unitario, subtotal 
+      FROM ord_items_orden 
+      WHERE orden_id = ${ordenId}
+    `);
 
     const doc = initPdf(res, `Comprobante_${orden.codigo_orden}`);
-    doc.fontSize(16).font('Helvetica-Bold').fillColor('#333').text('Comprobante de Venta', { align: 'center' });
-    doc.moveDown(0.5).fontSize(10).font('Helvetica').text(`Orden: ${orden.codigo_orden}`, 50, doc.y).text(`Cliente: ${orden.razon_social}`, 50, doc.y + 15);
-    doc.moveDown(1).font('Helvetica-Bold').fontSize(12).text(`TOTAL PAGADO: ${formatPen(orden.total)}`, { align: 'center' });
-    doc.moveDown(2).fontSize(8).fillColor('gray').text('Gracias por su compra en StockFlow', { align: 'center' });
+    
+    // Header con color
+    doc.rect(0, 0, doc.page.width, 60).fill('#1e3a5f');
+    doc.fillColor('white').fontSize(18).font('Helvetica-Bold').text('StockFlow', 50, 20);
+    doc.fontSize(10).font('Helvetica').text(`Fecha: ${new Date().toLocaleDateString('es-PE')}`, 350, 25);
+    doc.fillColor('#1e3a5f').fontSize(14).font('Helvetica-Bold').text('COMPROBANTE DE VENTA', 50, 80);
+    doc.moveTo(50, 115).lineTo(doc.page.width - 50, 115).stroke('#cccccc');
+    
+    // Informacion del comprobante - reducir espaciado
+    doc.y = 125;
+    doc.fontSize(10).font('Helvetica-Bold').fillColor('#000').text('Datos del Comprobante:', 50, doc.y);
+    doc.font('Helvetica').fontSize(9).text(`Orden: ${orden.codigo_orden}`, 50, doc.y + 12);
+    doc.text(`Fecha: ${new Date(orden.fecha_creacion).toLocaleDateString('es-PE')}`, 50, doc.y + 22);
+    doc.text(`Estado: ${orden.estado?.toUpperCase() || 'N/A'}`, 50, doc.y + 32);
+    
+    // Datos del cliente - reducir espaciado (antes 48, ahora 42)
+    doc.fontSize(10).font('Helvetica-Bold').fillColor('#000').text('Datos del Cliente:', 50, doc.y + 42);
+    doc.font('Helvetica').fontSize(9).text(`Nombre: ${orden.razon_social || 'N/A'}`, 50, doc.y + 52);
+    doc.text(`Documento: ${orden.numero_documento || 'N/A'}`, 50, doc.y + 62);
+    
+    // Tabla de productos - reducir espaciado (antes 82, ahora 72)
+    doc.y = doc.y + 82;
+    const rows = items.map((i: any) => [i.sku, i.producto_nombre, i.cantidad, formatPen(i.precio_unitario), formatPen(i.subtotal)]);
+    
+    drawTable({ 
+      doc, 
+      startY: doc.y, 
+      headers: ['SKU', 'Producto', 'Cant.', 'P. Unit.', 'Subtotal'], 
+      rows, 
+      columnWidths: [60, 180, 40, 80, 80],
+      startYAfterTable: (finalY: number) => { doc.y = finalY + 20; } 
+    });
+    
+    // Totales - reducir espaciado
+    doc.fontSize(10).font('Helvetica').text(`Subtotal: ${formatPen(orden.subtotal)}`, 350, doc.y, { width: 150, align: 'right' });
+    doc.text(`IGV: ${formatPen(orden.impuesto_igv)}`, 350, doc.y + 12, { width: 150, align: 'right' });
+    doc.text(`Envio: ${formatPen(orden.costo_envio)}`, 350, doc.y + 24, { width: 150, align: 'right' });
+    doc.font('Helvetica-Bold').fontSize(12).text(`TOTAL: ${formatPen(orden.total)}`, 350, doc.y + 36, { width: 150, align: 'right' });
+    
+    // Footer
+    const pages = doc.bufferedPageRange();
+    for (let i = 0; i < pages.count; i++) {
+      doc.switchToPage(i);
+      doc.fillColor('#999999').fontSize(8).font('Helvetica')
+         .text(`Pagina ${i + 1} de ${pages.count}`, 50, doc.page.height - 40, { align: 'center', width: doc.page.width - 100 });
+      doc.fillColor('gray').fontSize(8).text('Gracias por su compra en StockFlow', 50, doc.page.height - 60, { align: 'center', width: doc.page.width - 100 });
+    }
+    
     doc.end();
   } catch (error) {
     console.error('Error en repComprobanteSimplificado:', error);

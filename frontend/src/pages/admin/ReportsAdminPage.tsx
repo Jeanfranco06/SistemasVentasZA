@@ -1,11 +1,20 @@
 // frontend/src/pages/admin/ReportsAdminPage.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'react-hot-toast';
+
+interface Orden {
+  id: number;
+  codigoOrden: string;
+  cliente?: { razonSocial?: string };
+  total: number;
+  estado?: { nombre: string };
+}
 
 const descargarPDF = async (url: string, nombreArchivo: string) => {
   try {
@@ -28,10 +37,31 @@ const descargarPDF = async (url: string, nombreArchivo: string) => {
 
 export const ReportsAdminPage = () => {
   const [filtros, setFiltros] = useState({
-    fechaInicio: new Date().toISOString().split('T')[0], // Por defecto hoy
+    fechaInicio: new Date().toISOString().split('T')[0],
     fechaFin: new Date().toISOString().split('T')[0],
-    ordenId: '' // Para facturas individuales
+    ordenId: ''
   });
+  
+  const [ordenes, setOrdenes] = useState<Orden[]>([]);
+  const [loadingOrdenes, setLoadingOrdenes] = useState(false);
+
+  // Cargar órdenes al montar el componente
+  useEffect(() => {
+    const cargarOrdenes = async () => {
+      try {
+        setLoadingOrdenes(true);
+        const response = await api.get('/ordenes/admin');
+        if (response.data.success) {
+          setOrdenes(response.data.data || []);
+        }
+      } catch (error) {
+        console.error('Error cargando órdenes:', error);
+      } finally {
+        setLoadingOrdenes(false);
+      }
+    };
+    cargarOrdenes();
+  }, []);
 
   const generarUrl = (endpointBase: string) => {
     const params = new URLSearchParams({
@@ -63,7 +93,24 @@ export const ReportsAdminPage = () => {
             </div>
             <div>
               <Label className="text-blue-900">ID Orden (Solo facturas)</Label>
-              <Input type="number" placeholder="Ej: 15" value={filtros.ordenId} onChange={e => setFiltros({...filtros, ordenId: e.target.value})} />
+              <Select value={filtros.ordenId} onValueChange={(value) => setFiltros({...filtros, ordenId: value})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar orden..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {loadingOrdenes ? (
+                    <SelectItem value="loading" disabled>Cargando órdenes...</SelectItem>
+                  ) : ordenes.length === 0 ? (
+                    <SelectItem value="none" disabled>No hay órdenes disponibles</SelectItem>
+                  ) : (
+                    ordenes.map((orden) => (
+                      <SelectItem key={orden.id} value={String(orden.id)}>
+                        {orden.codigoOrden} - {orden.cliente?.razonSocial || 'N/A'} (S/ {Number(orden.total).toFixed(2)})
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardContent>

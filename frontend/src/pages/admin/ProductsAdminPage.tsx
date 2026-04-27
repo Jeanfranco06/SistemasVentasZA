@@ -19,6 +19,7 @@ type ProductoRow = {
   precioCosto: number;
   precioVenta: number;
   estado: string;
+  catImagenesProducto?: Array<{ urlImagen: string; orden: number }>;
 };
 
 type ProductosAdminResponse = {
@@ -71,6 +72,45 @@ export const ProductsAdminPage = () => {
 
   // 3. Definición de Columnas (TanStack Table v8)
   const columns: ColumnDef<ProductoRow>[] = [
+    {
+      id: 'imagen',
+      header: 'Imagen',
+      cell: function ImageCell({ row }) {
+        const [imageError, setImageError] = useState(false);
+        const imagenes = row.original.catImagenesProducto;
+        const imagenPrincipal = imagenes?.find(img => img.orden === 0) || imagenes?.[0];
+        
+        if (!imagenPrincipal || imageError) {
+          return (
+            <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center">
+              <span className="text-gray-400 text-xs">{imageError ? 'Error' : 'Sin img'}</span>
+            </div>
+          );
+        }
+        
+        // Construir URL de la imagen
+        let urlImagen = imagenPrincipal.urlImagen;
+        if (!urlImagen.startsWith('http') && !urlImagen.startsWith('/api')) {
+          // Si la URL es relativa (/uploads/...), prependir la baseURL de la API
+          const apiBaseUrl = import.meta.env.VITE_API_URL || window.location.origin + '/api/v1';
+          // Remover '/api/v1' del final si existe para obtener la base correcta
+          const baseUrl = apiBaseUrl.replace('/api/v1', '');
+          urlImagen = baseUrl + urlImagen;
+        }
+        
+        return (
+          <img 
+            src={urlImagen} 
+            alt={row.original.nombre}
+            className="w-12 h-12 object-cover rounded"
+            onError={() => {
+              console.error('Error cargando imagen:', urlImagen);
+              setImageError(true);
+            }}
+          />
+        );
+      }
+    },
     {
       accessorKey: 'sku',
       header: 'SKU',
@@ -175,9 +215,9 @@ export const ProductsAdminPage = () => {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Cargando datos...</td></tr>
+              <tr><td colSpan={8} className="text-center py-10 text-gray-400">Cargando datos...</td></tr>
             ) : table.getRowModel().rows.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-10 text-gray-400">No se encontraron productos</td></tr>
+              <tr><td colSpan={8} className="text-center py-10 text-gray-400">No se encontraron productos</td></tr>
             ) : (
               table.getRowModel().rows.map(row => (
                 <tr

@@ -10,8 +10,13 @@ import prisma from './lib/prisma.js';
 import { proteger, requerirRol } from './middlewares/auth.middleware.js';
 import { environment } from './config/env.js';
 import { login, registroCliente } from './controllers/auth.controller.js';
-import { obtenerSiguienteSku, crearProducto, listarProductosTienda, listarProductosAdmin, obtenerProductoPorId, actualizarProducto, eliminarProducto, obtenerStockProductos, cambiarEstadoProducto } from './controllers/producto.controller.js';
-import { agregarAlCarrito, checkoutCompleto, sincronizarCarritoBD, getMisOrdenes, cambiarEstadoOrden, listarOrdenesAdmin } from './controllers/orden.controller.js';
+import { 
+  obtenerSiguienteSku, crearProducto, listarProductosTienda, listarProductosAdmin, 
+  obtenerProductoPorId, actualizarProducto, eliminarProducto, obtenerStockProductos, 
+  cambiarEstadoProducto, subirImagenesProducto, obtenerImagenesProducto, 
+  eliminarImagenProducto, establecerImagenPrincipal 
+} from './controllers/producto.controller.js';
+import { agregarAlCarrito, checkoutCompleto, sincronizarCarritoBD, getMisOrdenes, cambiarEstadoOrden, listarOrdenesAdmin, obtenerOrdenDetalle, descargarOrdenPDF } from './controllers/orden.controller.js';
 import { analisisABC, analisisRFM, resumenEstadisticas } from './controllers/estadisticas.controller.js';
 import {
   dashboardInventario, crearProductoDraft, publicarProducto, descontinuarProducto,
@@ -29,7 +34,10 @@ import {
   repRentabilidadProducto, repVentasCategoria, repComportamientoCarritos, 
   repComportamientoClientes, repRotacionInventario, repIngresosVsCostos
 } from './controllers/reporte.controller.js';
-import {  getMisDeseos, toggleDeseo, getMisDirecciones, crearDireccion } from './controllers/cliente.controller.js'; // <--- AÑADE ESTA LÍNEA
+import {  getMisDeseos, toggleDeseo, getMisDirecciones, crearDireccion } from './controllers/cliente.controller.js';
+import { crearOrdenPayPalController, capturarPagoPayPal, verificarEstadoPago } from './controllers/paypal.controller.js';
+import { upload } from './middlewares/upload.middleware.js';
+import path from 'path';
 
 const app = express();
 
@@ -37,6 +45,10 @@ const app = express();
 app.use(helmet());
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Servir archivos estáticos para uploads
+const uploadsDir = path.join(process.cwd(), 'uploads');
+app.use('/uploads', express.static(uploadsDir));
 if (environment.NODE_ENV === 'production') {
   app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 }
@@ -104,6 +116,12 @@ app.post('/api/v1/productos/stock-info', obtenerStockProductos);
 
 app.get('/api/v1/productos/next-sku', obtenerSiguienteSku);
 app.post('/api/v1/productos', crearProducto);
+
+// Imágenes de productos
+app.post('/api/v1/productos/:id/imagenes', requerirRol('inventario', 'editar'), upload.array('imagenes', 10) as any, subirImagenesProducto as any);
+app.get('/api/v1/productos/:id/imagenes', requerirRol('inventario', 'leer'), obtenerImagenesProducto as any);
+app.delete('/api/v1/productos/:id/imagenes/:imagenId', requerirRol('inventario', 'editar'), eliminarImagenProducto as any);
+app.put('/api/v1/productos/:id/imagenes/:imagenId/principal', requerirRol('inventario', 'editar'), establecerImagenPrincipal as any);
 app.post('/api/v1/ordenes/carrito', agregarAlCarrito);
 
 // Rutas específicas para Gerente de Ventas
@@ -129,6 +147,7 @@ app.delete('/api/v1/inventario/proveedores/:id', requerirRol('proveedores', 'eli
 
 // Rutas Protegidas (debajo de las de productos)
 app.get('/api/v1/clientes/ordenes', proteger, getMisOrdenes);
+app.get('/api/v1/clientes/ordenes/:id/pdf', proteger, descargarOrdenPDF);
 app.get('/api/v1/clientes/deseos', proteger, getMisDeseos);
 app.post('/api/v1/clientes/deseos', proteger, toggleDeseo);
 app.get('/api/v1/clientes/direcciones', proteger, getMisDirecciones);
@@ -148,6 +167,8 @@ app.delete('/api/v1/inventario/proveedores/:id', requerirRol('inventario', 'elim
 
 // Órdenes Admin
 app.get('/api/v1/ordenes/admin', requerirRol('ordenes', 'leer'), listarOrdenesAdmin);
+app.get('/api/v1/ordenes/:id', requerirRol('ordenes', 'leer'), obtenerOrdenDetalle);
+app.get('/api/v1/ordenes/:id/pdf', requerirRol('ordenes', 'leer'), descargarOrdenPDF);
 app.put('/api/v1/ordenes/:id/estado', requerirRol('ordenes', 'editar'), cambiarEstadoOrden);
 
 const reportesRouter = express.Router(); // Opcional: agrupar para mantener el código limpio
@@ -172,6 +193,11 @@ reportesRouter.get('/gestion/ingresos-costos', repIngresosVsCostos);
 
 // Registrar el enrutador bajo el path principal
 app.use('/api/v1/reportes', proteger, reportesRouter);
+
+// Rutas de PayPal
+app.post('/api/v1/pagos/paypal/crear-orden', proteger, crearOrdenPayPalController);
+app.post('/api/v1/pagos/paypal/capturar', proteger, capturarPagoPayPal);
+app.get('/api/v1/pagos/paypal/verificar', proteger, verificarEstadoPago);
 
 // Middleware de Errores (Debe ser el último middleware)
 app.use(globalErrorHandler as any);

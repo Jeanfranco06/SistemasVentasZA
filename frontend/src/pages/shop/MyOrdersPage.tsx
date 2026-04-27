@@ -2,6 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Download } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 export const MyOrdersPage = () => {
   const { data: ordenes, isLoading } = useQuery({
@@ -19,6 +22,30 @@ export const MyOrdersPage = () => {
     return 'bg-gray-100 text-gray-800';
   };
 
+  // Función para descargar PDF de la orden
+  const handleDescargarPDF = async (ordenId: number, codigoOrden: string) => {
+    try {
+      const response = await api.get(`/clientes/ordenes/${ordenId}/pdf`, {
+        responseType: 'blob'
+      });
+      
+      // Crear URL para el blob
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `orden_${codigoOrden}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('PDF descargado correctamente');
+    } catch (error: any) {
+      console.error('Error descargando PDF:', error);
+      toast.error('Error al descargar el PDF');
+    }
+  };
+
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
       <h1 className="text-3xl font-bold mb-6">Mis Órdenes</h1>
@@ -34,9 +61,19 @@ export const MyOrdersPage = () => {
                   <CardTitle className="text-lg text-blue-600">{orden.codigoOrden}</CardTitle>
                   <p className="text-sm text-gray-500">{new Date(orden.fechaCreacion).toLocaleDateString('es-PE')}</p>
                 </div>
-                <Badge className={`${getColorEstado(orden.estado.nombre)} text-sm px-3 py-1`}>
-                  {orden.estado.nombre.replace('_', ' ')}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge className={`${getColorEstado(orden.estado.nombre)} text-sm px-3 py-1`}>
+                    {orden.estado.nombre.replace('_', ' ')}
+                  </Badge>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => handleDescargarPDF(orden.id, orden.codigoOrden)}
+                    title="Descargar PDF"
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 border-t pt-4">

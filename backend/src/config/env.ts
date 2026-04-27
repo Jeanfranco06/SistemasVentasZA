@@ -10,6 +10,9 @@ const envSchema = z.object({
   DATABASE_URL: z.string(),
   JWT_SECRET: z.string(),
   JWT_REFRESH_SECRET: z.string(),
+  PAYPAL_MODE: z.enum(['sandbox', 'live']).default('sandbox'),
+  PAYPAL_CLIENT_ID: z.string(),
+  PAYPAL_CLIENT_SECRET: z.string(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

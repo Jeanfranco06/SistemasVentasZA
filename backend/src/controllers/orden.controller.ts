@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AppError } from '../utils/AppError.js';
 import { confirmarPagoYDescontarStock } from '../services/orden.service.js';
+import { generarPdfOrden } from '../utils/pdfGestion.js';
 
 
 
@@ -269,6 +270,118 @@ export const listarOrdenesAdmin = async (req: Request, res: Response, next: Next
     });
 
     res.json({ success: true, data: ordenes });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const obtenerOrdenDetalle = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const ordenId = Number(req.params.id);
+    if (isNaN(ordenId)) {
+      throw new AppError('ID de orden inválido', 400);
+    }
+
+    const orden = await prisma.ordOrden.findUnique({
+      where: { id: ordenId },
+      include: {
+        estado: true,
+        cliente: {
+          include: {
+            usuario: {
+              select: { email: true, nombreCompleto: true }
+            }
+          }
+        },
+        items: true,
+        direccionesEnvio: true,
+        metodoEnvio: true,
+        pagos: {
+          include: {
+            transacciones: true
+          }
+        },
+        historial: {
+          include: {
+            estado: true,
+            creadoPorUser: {
+              select: { email: true, nombreCompleto: true }
+            }
+          },
+          orderBy: { fechaCreacion: 'desc' }
+        }
+      }
+    });
+
+    if (!orden) {
+      throw new AppError('Orden no encontrada', 404);
+    }
+
+    res.json({ success: true, data: orden });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const descargarOrdenPDF = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const ordenId = Number(req.params.id);
+    if (isNaN(ordenId)) {
+      throw new AppError('ID de orden inválido', 400);
+    }
+
+    const orden = await prisma.ordOrden.findUnique({
+      where: { id: ordenId },
+      include: {
+        estado: true,
+        cliente: {
+          include: {
+            usuario: {
+              select: { email: true, nombreCompleto: true }
+            }
+          }
+        },
+        items: true,
+        direccionesEnvio: true,
+        metodoEnvio: true,
+      }
+    });
+
+    if (!orden) {
+      throw new AppError('Orden no encontrada', 404);
+    }
+
+    // Generar el PDF
+    const pdfBuffer = await generarPdfOrden({
+      codigoOrden: orden.codigoOrden,
+      fechaCreacion: orden.fechaCreacion,
+      cliente: orden.cliente,
+      items: orden.items.map(item => ({
+        productoNombre: item.productoNombre,
+        sku: item.sku,
+        cantidad: item.cantidad,
+        precioUnitario: item.precioUnitario.toNumber(),
+        subtotal: item.subtotal.toNumber(),
+      })),
+      subtotal: orden.subtotal.toNumber(),
+      impuestoIgv: orden.impuestoIgv.toNumber(),
+      costoEnvio: orden.costoEnvio.toNumber(),
+      total: orden.total.toNumber(),
+      direccionesEnvio: orden.direccionesEnvio.map(d => ({
+        direccion: d.direccion,
+        ciudad: d.ciudad,
+        destinatarioNombre: d.destinatarioNombre,
+      })),
+      metodoEnvio: orden.metodoEnvio ? { nombre: orden.metodoEnvio.nombre } : undefined,
+      estado: orden.estado,
+    });
+
+    // Configurar headers para descarga de PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="orden-${orden.codigoOrden}.pdf"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    
+    res.send(pdfBuffer);
   } catch (error) {
     next(error);
   }
