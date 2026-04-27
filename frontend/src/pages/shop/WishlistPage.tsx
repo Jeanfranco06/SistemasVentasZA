@@ -1,13 +1,26 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
+import { useAuthStore } from '@/stores/auth.store';
 import { useCartStore } from '@/stores/cart.store';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { toast } from 'react-hot-toast';
+import { ProductoCard } from '@/components/shop/ProductCard';
 
 export const WishlistPage = () => {
-  const queryClient = useQueryClient();
+  const accessToken = useAuthStore(state => state.accessToken);
   const agregarItem = useCartStore(state => state.agregarItem);
+
+  // SUSCRIPCIÓN REACTIVA (Carrito)
+  const itemsCarrito = useCartStore(state => state.items);
+
+  // Mapa rápido { productoId: cantidadEnCarrito }
+  const cantidadesMap = useMemo(() => {
+    const map: Record<number, number> = {};
+    itemsCarrito.forEach(item => {
+      map[item.productoId] = item.cantidad;
+    });
+    return map;
+  }, [itemsCarrito]);
 
   const { data: deseos, isLoading } = useQuery({
     queryKey: ['mis-deseos'],
@@ -17,46 +30,32 @@ export const WishlistPage = () => {
     }
   });
 
-  // Mutación optimizada para eliminar
-  const eliminarMutation = useMutation({
-    mutationFn: async (productoId: number) => {
-      // Se envía EXACTAMENTE el mismo formato que el Card del catálogo
-      const { data } = await api.post('/clientes/deseos', { productoId });
-      return data;
-    },
-    onSuccess: (data) => {
-      // Mostrar el mensaje que devuelve el backend ('Agregado' o 'Eliminado')
-      toast.success(data.message);
-      // Refrescar automáticamente la lista para que desaparezca la card sin recargar
-      queryClient.invalidateQueries({ queryKey: ['mis-deseos'] });
-      // Refrescar también los corazones del catálogo para que cambien de rojo a gris
-      queryClient.invalidateQueries({ queryKey: ['deseos-ids'] });
-    },
-    onError: () => {
-      toast.error('Error al actualizar favorito');
-    }
-  });
-
   const handleAgregarAlCarrito = (item: any) => {
+    const stockDisponible = (item.producto.invStockProducto?.stockFisico || 0) - (item.producto.invStockProducto?.stockReservado || 0);
     agregarItem({
       productoId: item.producto.id,
       nombre: item.producto.nombre,
       sku: item.producto.sku,
-      precio: Number(item.producto.precioVenta),
+      precio: Number(item.producto.precioOferta || item.producto.precioVenta),
       cantidad: 1,
-      stockDisponible: 999 
+      stockDisponible 
     });
-    toast.success(`${item.producto.nombre} pasó al carrito`);
+  };
+
+  const handleVerDetalle = (producto: any) => {
+    // Este manejador se puede expandir para mostrar un modal de detalle si es necesario
   };
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-5xl">
-      <h1 className="text-3xl font-bold mb-2">Mi Lista de Deseos</h1>
-      <p className="text-gray-500 mb-8">Productos que te gustaron y guardaste para más tarde.</p>
+    <div className="container mx-auto py-8 px-4">
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">Mi Lista de Deseos</h1>
+        <p className="text-gray-500 mt-1">Productos que te guardaste para revisar más tarde</p>
+      </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {[1,2,3].map(i => <div key={i} className="h-64 bg-gray-100 animate-pulse rounded-xl" />)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[1,2,3,4].map(i => <div key={i} className="h-96 bg-gray-100 animate-pulse rounded-xl" />)}
         </div>
       ) : deseos?.length === 0 ? (
         <Card>
@@ -67,28 +66,16 @@ export const WishlistPage = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {deseos.map((item: any) => (
-            <Card key={item.id} className="overflow-hidden group"> {/* SOLUCIÓN AL WARNING: key={item.id} */}
-              <div className="bg-gray-50 h-48 flex items-center justify-center relative">
-                <div className="text-5xl text-gray-300">🖼️</div>
-                {/* Botón X */}
-                <button 
-                  onClick={() => eliminarMutation.mutate(item.producto.id)}
-                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  ✕
-                </button>
-              </div>
-              <CardContent className="p-4">
-                <p className="text-xs text-gray-400 mb-1">{item.producto.sku}</p>
-                <h3 className="font-semibold text-sm line-clamp-2 mb-3">{item.producto.nombre}</h3>
-                <div className="flex items-center justify-between mt-auto pt-3 border-t">
-                  <span className="text-lg font-bold">S/ {Number(item.producto.precioVenta).toFixed(2)}</span>
-                  <Button size="sm" onClick={() => handleAgregarAlCarrito(item)}>Al carrito</Button>
-                </div>
-              </CardContent>
-            </Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {deseos.map((deseado: any) => (
+            <ProductoCard
+              key={deseado.id}
+              producto={deseado.producto}
+              onVerDetalle={handleVerDetalle}
+              cantidadEnCarrito={cantidadesMap[deseado.producto.id] || 0}
+              onAgregar={handleAgregarAlCarrito}
+              esDeseo={true}
+            />
           ))}
         </div>
       )}
