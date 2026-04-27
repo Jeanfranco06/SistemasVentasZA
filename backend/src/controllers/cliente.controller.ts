@@ -50,8 +50,13 @@ export const getMisDeseos = async (req: Request, res: Response, next: NextFuncti
             id: true, 
             nombre: true, 
             sku: true, 
-            precioVenta: true, 
-            estado: true 
+            precioVenta: true,
+            precioOferta: true,
+            estado: true,
+            catImagenesProducto: {
+              orderBy: { orden: 'asc' }
+            },
+            invStockProducto: true
           } 
         } 
       },

@@ -30,15 +30,14 @@ export const WishlistPage = () => {
     }
   });
 
-  const handleAgregarAlCarrito = (item: any) => {
-    const stockDisponible = (item.producto.invStockProducto?.stockFisico || 0) - (item.producto.invStockProducto?.stockReservado || 0);
+  const handleAgregarAlCarrito = (itemData: any) => {
     agregarItem({
-      productoId: item.producto.id,
-      nombre: item.producto.nombre,
-      sku: item.producto.sku,
-      precio: Number(item.producto.precioOferta || item.producto.precioVenta),
-      cantidad: 1,
-      stockDisponible 
+      productoId: itemData.productoId,
+      nombre: itemData.nombre,
+      sku: itemData.sku,
+      precio: itemData.precio,
+      cantidad: itemData.cantidad,
+      stockDisponible: itemData.stockDisponible 
     });
   };
 
