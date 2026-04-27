@@ -46,38 +46,47 @@ export const WishlistPage = () => {
   };
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">Mi Lista de Deseos</h1>
-        <p className="text-gray-500 mt-1">Productos que te guardaste para revisar más tarde</p>
-      </div>
+    <div className="min-h-[calc(100vh-8rem)] bg-slate-50 py-8">
+      <div className="container mx-auto max-w-7xl px-4">
+        <div className="mb-8 rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Mi Lista de Deseos</h1>
+              <p className="mt-2 text-sm text-slate-500">Guarda productos para más tarde y regresa cuando estés listo para comprar.</p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700">
+              {deseos?.length ?? 0} {deseos?.length === 1 ? 'deseo' : 'deseos'}
+            </span>
+          </div>
+        </div>
 
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {[1,2,3,4].map(i => <div key={i} className="h-96 bg-gray-100 animate-pulse rounded-xl" />)}
-        </div>
-      ) : deseos?.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center">
-            <div className="text-5xl mb-4">💝</div>
-            <p className="text-gray-500 font-medium">Tu lista de deseos está vacía</p>
-            <p className="text-gray-400 text-sm mt-1">Explora el catálogo y haz clic en el ❤️ para guardar productos aquí.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {deseos.map((deseado: any) => (
-            <ProductoCard
-              key={deseado.id}
-              producto={deseado.producto}
-              onVerDetalle={handleVerDetalle}
-              cantidadEnCarrito={cantidadesMap[deseado.producto.id] || 0}
-              onAgregar={handleAgregarAlCarrito}
-              esDeseo={true}
-            />
-          ))}
-        </div>
-      )}
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[1,2,3,4].map(i => <div key={i} className="h-96 rounded-[28px] bg-slate-100 animate-pulse" />)}
+          </div>
+        ) : deseos?.length === 0 ? (
+          <Card>
+            <CardContent className="py-16 text-center">
+              <div className="text-6xl mb-4">💝</div>
+              <p className="text-slate-500 font-medium">Tu lista de deseos está vacía</p>
+              <p className="text-slate-400 text-sm mt-1">Explora el catálogo y guarda aquí los productos que más te interesan.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {deseos.map((deseado: any) => (
+              <ProductoCard
+                key={deseado.id}
+                producto={deseado.producto}
+                onVerDetalle={handleVerDetalle}
+                cantidadEnCarrito={cantidadesMap[deseado.producto.id] || 0}
+                onAgregar={handleAgregarAlCarrito}
+                esDeseo={true}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

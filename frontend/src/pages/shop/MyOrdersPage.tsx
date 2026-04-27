@@ -47,54 +47,69 @@ export const MyOrdersPage = () => {
   };
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">Mis Órdenes</h1>
-
-      {isLoading ? <div>Cargando...</div> : ordenes?.length === 0 ? (
-        <Card><CardContent className="py-10 text-center text-gray-500">No has realizado compras aún.</CardContent></Card>
-      ) : (
-        <div className="space-y-6">
-          {ordenes.map((orden: any) => (
-            <Card key={orden.id}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div>
-                  <CardTitle className="text-lg text-blue-600">{orden.codigoOrden}</CardTitle>
-                  <p className="text-sm text-gray-500">{new Date(orden.fechaCreacion).toLocaleDateString('es-PE')}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge className={`${getColorEstado(orden.estado.nombre)} text-sm px-3 py-1`}>
-                    {orden.estado.nombre.replace('_', ' ')}
-                  </Badge>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => handleDescargarPDF(orden.id, orden.codigoOrden)}
-                    title="Descargar PDF"
-                  >
-                    <Download className="w-4 h-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 border-t pt-4">
-                  {orden.items.map((item: any) => (
-                    <div key={item.id} className="flex justify-between text-sm">
-                      <div>
-                        <span className="font-medium">{item.productoNombre}</span>
-                        <span className="text-gray-500 ml-2">x{item.cantidad}</span>
-                      </div>
-                      <span>S/ {Number(item.subtotal).toFixed(2)}</span>
-                    </div>
-                  ))}
-                  <div className="flex justify-end border-t pt-2 mt-2 font-bold text-lg">
-                    Total: S/ {Number(orden.total).toFixed(2)}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+    <div className="min-h-[calc(100vh-8rem)] bg-slate-50 py-8">
+      <div className="container mx-auto max-w-6xl px-4">
+        <div className="mb-8 rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+          <h1 className="text-3xl font-semibold text-slate-900">Mis Órdenes</h1>
+          <p className="mt-2 text-sm text-slate-500">Revisa el historial de tus compras y descarga tus comprobantes.</p>
         </div>
-      )}
+
+        {isLoading ? (
+          <div className="space-y-4">
+            {[1,2,3].map(index => (
+              <div key={index} className="h-40 rounded-[32px] bg-slate-100 animate-pulse" />
+            ))}
+          </div>
+        ) : ordenes?.length === 0 ? (
+          <Card>
+            <CardContent className="py-16 text-center text-slate-500">
+              No has realizado compras aún.
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-6">
+            {ordenes.map((orden: any) => (
+              <Card key={orden.id} className="overflow-hidden">
+                <CardHeader className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <CardTitle className="text-lg text-blue-600">{orden.codigoOrden}</CardTitle>
+                    <p className="text-sm text-slate-500">{new Date(orden.fechaCreacion).toLocaleDateString('es-PE')}</p>
+                  </div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <Badge className={`${getColorEstado(orden.estado.nombre)} text-sm px-3 py-1`}>
+                      {orden.estado.nombre.replace('_', ' ')}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDescargarPDF(orden.id, orden.codigoOrden)}
+                      title="Descargar PDF"
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 border-t border-slate-200 pt-4">
+                    {orden.items.map((item: any) => (
+                      <div key={item.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm">
+                        <div>
+                          <span className="font-medium text-slate-900">{item.productoNombre}</span>
+                          <span className="ml-2 text-slate-500">x{item.cantidad}</span>
+                        </div>
+                        <span className="font-semibold text-slate-900">S/ {Number(item.subtotal).toFixed(2)}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-end border-t border-slate-200 pt-4 text-base font-semibold text-slate-900">
+                      Total: S/ {Number(orden.total).toFixed(2)}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

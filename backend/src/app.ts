@@ -35,15 +35,15 @@ import {
   repComportamientoClientes, repRotacionInventario, repIngresosVsCostos
 } from './controllers/reporte.controller.js';
 import {  getMisDeseos, toggleDeseo, getMisDirecciones, crearDireccion } from './controllers/cliente.controller.js';
-import { crearOrdenPayPalController, capturarPagoPayPal, verificarEstadoPago } from './controllers/paypal.controller.js';
+import { crearOrdenPayPalController, capturarPagoPayPal, verificarEstadoPago, probarPayPal } from './controllers/paypal.controller.js';
 import { upload } from './middlewares/upload.middleware.js';
 import path from 'path';
 
 const app = express();
 
 // Seguridad y límites
-app.use(helmet());
-app.use(cors());
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 
 // Servir archivos estáticos para uploads
@@ -198,6 +198,7 @@ app.use('/api/v1/reportes', proteger, reportesRouter);
 app.post('/api/v1/pagos/paypal/crear-orden', proteger, crearOrdenPayPalController);
 app.post('/api/v1/pagos/paypal/capturar', proteger, capturarPagoPayPal);
 app.get('/api/v1/pagos/paypal/verificar', proteger, verificarEstadoPago);
+app.get('/api/v1/pagos/paypal/probar', proteger, probarPayPal);
 
 // Middleware de Errores (Debe ser el último middleware)
 app.use(globalErrorHandler as any);

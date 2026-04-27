@@ -54,7 +54,7 @@ export const checkoutCompleto = async (req: Request, res: Response, next: NextFu
       cliente = await prisma.cliCliente.create({ data: { usuarioId, razonSocial: 'Cliente Final' } });
     }
 
-    const { direccionEnvio, metodoEnvioId, items } = req.body;
+    const { direccionEnvio, metodoEnvioId, metodoPago, items } = req.body;
 
     await prisma.$transaction(async (tx) => {
       if (!items || !Array.isArray(items) || items.length === 0) {
@@ -148,14 +148,20 @@ export const checkoutCompleto = async (req: Request, res: Response, next: NextFu
           costoEnvio,
           impuestoIgv,
           total,
-          codigoOrden: `ORD-${Date.now().toString().slice(-8)}`, // Cortamos el timestamp para evitar desbordamientos
+          codigoOrden: `ORD-${Date.now().toString().slice(-8)}`,
           items: { create: itemsData },
-          direccionesEnvio: { 
-            create: { 
-              direccion: direccionEnvio?.direccion || 'Sin dirección', 
-              ciudad: direccionEnvio?.ciudad || 'Lima' 
-            } 
-          }
+          direccionesEnvio: {
+            create: {
+              direccion: direccionEnvio?.direccion || 'Sin dirección',
+              ciudad: direccionEnvio?.ciudad || 'Lima'
+            }
+          },
+          pagos: metodoPago === 'paypal' ? {
+            create: {
+              metodo: 'paypal',
+              estado: 'pendiente'
+            }
+          } : undefined
         }
       });
 
@@ -304,9 +310,6 @@ export const obtenerOrdenDetalle = async (req: Request, res: Response, next: Nex
         historial: {
           include: {
             estado: true,
-            creadoPorUser: {
-              select: { email: true, nombreCompleto: true }
-            }
           },
           orderBy: { fechaCreacion: 'desc' }
         }

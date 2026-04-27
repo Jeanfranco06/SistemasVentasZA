@@ -18,24 +18,34 @@ export const crearOrdenPayPalController = async (req: Request, res: Response, ne
     // Obtener la orden interna
     const orden = await prisma.ordOrden.findUnique({
       where: { id: ordenInternalId },
-      include: { cliente: true },
+      include: { cliente: true, estado: true, pagos: true },
     });
 
     if (!orden) throw new AppError('Orden no encontrada', 404);
-    if (orden.estado.id !== 1) throw new AppError('La orden no está en estado pendiente', 400);
+    if (orden.estado?.nombre !== 'pendiente_pago') {
+      throw new AppError('La orden no está en estado pendiente de pago', 400);
+    }
 
-    // Crear orden en PayPal
-    const montoEnUSD = Number(orden.total) / 3.7; // Conversión PEN a USD
+    const montoEnUSD = Number(orden.total) / 3.7;
     const ordenPayPal = await crearOrdenPayPal(montoEnUSD, orden.codigoOrden);
 
-    // Guardar el ID de PayPal en la BD
-    await prisma.ordPago.update({
-      where: { ordenId: orden.id },
-      data: {
-        metodo: 'paypal',
-        estado: 'pendiente',
-      },
-    });
+    if (!orden.pagos?.length) {
+      await prisma.ordPago.create({
+        data: {
+          ordenId: orden.id,
+          metodo: 'paypal',
+          estado: 'pendiente'
+        }
+      });
+    } else {
+      await prisma.ordPago.update({
+        where: { ordenId: orden.id },
+        data: {
+          metodo: 'paypal',
+          estado: 'pendiente'
+        }
+      });
+    }
 
     res.json({
       success: true,
@@ -67,22 +77,41 @@ export const capturarPagoPayPal = async (req: Request, res: Response, next: Next
     // Actualizar la orden interna
     const orden = await prisma.ordOrden.findUnique({
       where: { id: ordenInternalId },
+      include: { pagos: true }
     });
 
     if (!orden) throw new AppError('Orden no encontrada', 404);
 
-    // Registrar la transacción
+    let pago = orden.pagos?.[0];
+    if (!pago) {
+      pago = await prisma.ordPago.create({
+        data: {
+          ordenId: orden.id,
+          metodo: 'paypal',
+          estado: 'pendiente'
+        }
+      });
+    }
+
     await prisma.ordTransaccionPago.create({
       data: {
-        pagoId: orden.pagos[0]?.id || 1,
+        pagoId: pago.id,
         estado: 'completado',
         monto: orden.total,
         respuestaJson: detallesPayPal as any,
       },
     });
 
+    await prisma.ordPago.update({
+      where: { id: pago.id },
+      data: { estado: 'completado' }
+    });
+
     // Confirmar pago y descontar stock
-    await confirmarPagoYDescontarStock(orden.id);
+    const usuarioId = req.usuario?.id;
+    if (!usuarioId) throw new AppError('No autenticado', 401);
+
+    await confirmarPagoYDescontarStock(orden.id, usuarioId);
 
     res.json({
       success: true,
@@ -105,7 +134,7 @@ export const verificarEstadoPago = async (req: Request, res: Response, next: Nex
     const { paypalOrderId } = req.query;
     if (!paypalOrderId) throw new AppError('Order ID requerido', 400);
 
-    const detalles = await obtenerDetallesOrdenPayPal(paypalOrderId as string);
+    const detalles: any = await obtenerDetallesOrdenPayPal(paypalOrderId as string);
 
     res.json({
       success: true,
@@ -116,5 +145,31 @@ export const verificarEstadoPago = async (req: Request, res: Response, next: Nex
     });
   } catch (error) {
     next(error);
+  }
+};
+
+/**
+ * Probar conexión con PayPal
+ */
+export const probarPayPal = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Intentar crear una orden de prueba con monto mínimo
+    const ordenPayPal = await crearOrdenPayPal(0.01, 'TEST-ORDER');
+
+    res.json({
+      success: true,
+      message: 'Conexión con PayPal exitosa',
+      data: {
+        orderId: ordenPayPal.id,
+        status: ordenPayPal.status,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error probando PayPal:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error conectando con PayPal',
+      error: error.message,
+    });
   }
 };

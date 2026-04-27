@@ -13,10 +13,12 @@ interface Props {
 // Función auxiliar para obtener URL de imagen
 const getImagenUrl = (urlImagen: string) => {
   if (!urlImagen) return null;
-  if (urlImagen.startsWith('http') || urlImagen.startsWith('/api')) return urlImagen;
-  const apiBaseUrl = import.meta.env.VITE_API_URL || window.location.origin + '/api/v1';
-  const baseUrl = apiBaseUrl.replace('/api/v1', '');
-  return baseUrl + urlImagen;
+  if (urlImagen.startsWith('http')) return urlImagen;
+
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
+  const backendUrl = apiBaseUrl.replace('/api/v1', '');
+  if (!urlImagen.startsWith('/')) urlImagen = `/${urlImagen}`;
+  return `${backendUrl}${urlImagen}`;
 };
 
 export const ProductDetailModal = ({ open, onOpenChange, producto }: Props) => {

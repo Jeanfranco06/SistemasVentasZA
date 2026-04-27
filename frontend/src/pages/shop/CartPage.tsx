@@ -77,12 +77,20 @@ export const CartPage = () => {
     if (nuevaCantidad <= 0) {
       eliminarItem(productoId);
       toast.success('Producto eliminado del carrito');
-    } else if (nuevaCantidad > item.stockDisponible) {
+      return;
+    }
+
+    if (nuevaCantidad > item.stockDisponible) {
       toast.error(`Solo hay ${item.stockDisponible} unidades disponibles. Cantidad ajustada al máximo disponible.`);
       modificarCantidad(productoId, item.stockDisponible);
-    } else {
-      modificarCantidad(productoId, nuevaCantidad);
+      return;
     }
+
+    if (nuevaCantidad === item.stockDisponible && item.cantidad < item.stockDisponible) {
+      toast('Has alcanzado el stock máximo disponible.', { icon: '✅' });
+    }
+
+    modificarCantidad(productoId, nuevaCantidad);
   };
 
   const handleCantidadInputChange = (productoId: number, value: string) => {
@@ -92,7 +100,18 @@ export const CartPage = () => {
 
     const numValue = parseInt(numericValue) || 0;
     if (numValue > 0) {
-      handleCambiarCantidad(productoId, numValue);
+      const item = items.find(i => i.productoId === productoId);
+      if (item && numValue >= item.stockDisponible) {
+        if (numValue > item.stockDisponible) {
+          toast.error(`Solo hay ${item.stockDisponible} unidades disponibles. Cantidad ajustada al máximo disponible.`);
+          modificarCantidad(productoId, item.stockDisponible);
+        } else if (item.cantidad < item.stockDisponible) {
+          toast('Has alcanzado el stock máximo disponible.', { icon: '✅' });
+          modificarCantidad(productoId, numValue);
+        }
+      } else {
+        handleCambiarCantidad(productoId, numValue);
+      }
     }
   };
 
@@ -115,32 +134,42 @@ export const CartPage = () => {
 
   if (items.length === 0) {
     return (
-      <div className="container mx-auto py-8 px-4 max-w-4xl">
-        <h1 className="text-3xl font-bold mb-2">Tu Carrito de Compras</h1>
-        <p className="text-gray-500 mb-8">Productos que has agregado para comprar.</p>
+      <div className="container mx-auto py-10 px-4 max-w-5xl">
+        <div className="rounded-[32px] border border-slate-200 bg-white p-12 shadow-sm">
+          <div className="mb-6">
+            <h1 className="text-4xl font-semibold text-slate-900">Tu carrito está vacío</h1>
+            <p className="mt-2 text-slate-500">Aún no has agregado productos. Explora el catálogo y encuentra lo que necesitas.</p>
+          </div>
 
-        <Card>
-          <CardContent className="py-16 text-center">
-            <div className="text-5xl mb-4">🛒</div>
-            <p className="text-gray-500 font-medium">Tu carrito está vacío</p>
-            <p className="text-gray-400 text-sm mt-1">Explora el catálogo y agrega productos a tu carrito.</p>
-            <Button className="mt-4" onClick={() => navigate('/')}>
+          <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+            <div className="text-6xl">🛒</div>
+            <p className="text-slate-500 text-lg">Tu carrito no tiene artículos por el momento.</p>
+            <Button onClick={() => navigate('/')} className="w-full sm:w-auto">
               Ir al Catálogo
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-2">Tu Carrito de Compras</h1>
-      <p className="text-gray-500 mb-8">Productos que has agregado para comprar.</p>
+    <div className="container mx-auto py-10 px-4 max-w-7xl">
+      <div className="mb-8 rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-900">Tu Carrito de Compras</h1>
+            <p className="mt-2 text-sm text-slate-500">Revisa tus productos y finaliza tu compra cuando estés listo.</p>
+          </div>
+          <span className="inline-flex items-center rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700">
+            {items.length} {items.length === 1 ? 'producto' : 'productos'}
+          </span>
+        </div>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.7fr_0.95fr]">
         {/* Lista de Productos */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="space-y-4">
           {items.map((item) => (
             <Card key={item.productoId}>
               <CardContent className="p-4">

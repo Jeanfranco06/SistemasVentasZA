@@ -57,6 +57,20 @@ export const ProductoCard = ({ producto, onVerDetalle, cantidadEnCarrito, onAgre
     }
   }, [limiteMaximo, cantidadLocal]);
 
+  const notificarAlcanzarMaximo = (nuevoValor: number) => {
+    if (limiteMaximo > 1 && nuevoValor === limiteMaximo && cantidadLocal < limiteMaximo) {
+      toast('Has alcanzado el stock máximo disponible.', { icon: '✅' });
+    }
+  };
+
+  const actualizarCantidadLocal = (nuevoValor: number) => {
+    const valor = Math.max(1, Math.min(limiteMaximo, nuevoValor));
+    if (valor === limiteMaximo) {
+      notificarAlcanzarMaximo(valor);
+    }
+    setCantidadLocal(valor);
+  };
+
   const handleAgregarDirecto = () => {
     if (sinStock || cantidadLocal > limiteMaximo) return;
     onAgregar({
@@ -91,16 +105,20 @@ export const ProductoCard = ({ producto, onVerDetalle, cantidadEnCarrito, onAgre
   const getImagenUrl = () => {
     const imagenes = producto.catImagenesProducto;
     const imagenPrincipal = imagenes?.find((img: any) => img.orden === 0) || imagenes?.[0];
-    
+
     if (!imagenPrincipal) return null;
-    
+
     let urlImagen = imagenPrincipal.urlImagen;
-    if (!urlImagen.startsWith('http') && !urlImagen.startsWith('/api')) {
-      const apiBaseUrl = import.meta.env.VITE_API_URL || window.location.origin + '/api/v1';
-      const baseUrl = apiBaseUrl.replace('/api/v1', '');
-      urlImagen = baseUrl + urlImagen;
+    if (!urlImagen.startsWith('http')) {
+      // Si es una URL relativa, construir la URL completa
+      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
+      const backendUrl = apiBaseUrl.replace('/api/v1', '');
+      if (!urlImagen.startsWith('/')) {
+        urlImagen = `/${urlImagen}`;
+      }
+      urlImagen = `${backendUrl}${urlImagen}`;
     }
-    
+
     return urlImagen;
   };
 
@@ -179,9 +197,15 @@ export const ProductoCard = ({ producto, onVerDetalle, cantidadEnCarrito, onAgre
         {/* Controles */}
         <div className="space-y-2 pt-2 border-t border-gray-100 mt-auto">
           <div className="flex items-center justify-between border rounded-md bg-gray-50">
-            <button className="px-3 py-2 text-gray-600 hover:text-black font-bold disabled:text-gray-300" onClick={() => setCantidadLocal(Math.max(1, cantidadLocal - 1))} disabled={sinStock || cantidadLocal <= 1}>−</button>
-            <input type="number" value={cantidadLocal} onChange={(e) => setCantidadLocal(Math.max(1, Math.min(limiteMaximo, Number(e.target.value))))} className="w-10 text-center text-sm font-medium bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" disabled={sinStock} />
-            <button className="px-3 py-2 text-gray-600 hover:text-black font-bold disabled:text-gray-300" onClick={() => setCantidadLocal(Math.min(limiteMaximo, cantidadLocal + 1))} disabled={sinStock || cantidadLocal >= limiteMaximo}>+</button>
+            <button className="px-3 py-2 text-gray-600 hover:text-black font-bold disabled:text-gray-300" onClick={() => actualizarCantidadLocal(cantidadLocal - 1)} disabled={sinStock || cantidadLocal <= 1}>−</button>
+            <input
+              type="number"
+              value={cantidadLocal}
+              onChange={(e) => actualizarCantidadLocal(Math.max(1, Math.min(limiteMaximo, Number(e.target.value))))}
+              className="w-10 text-center text-sm font-medium bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              disabled={sinStock}
+            />
+            <button className="px-3 py-2 text-gray-600 hover:text-black font-bold disabled:text-gray-300" onClick={() => actualizarCantidadLocal(cantidadLocal + 1)} disabled={sinStock || cantidadLocal >= limiteMaximo}>+</button>
           </div>
 
           <Button 

@@ -32,23 +32,37 @@ export const confirmarPagoYDescontarStock = async (ordenId: number, usuarioId: n
       }
 
       const stockDisponible = stockActual.stock_fisico - stockActual.stock_reservado;
+      const tieneReservado = stockActual.stock_reservado >= item.cantidad;
+      const puedeConsumirSinReserva = stockDisponible >= item.cantidad;
 
-      // VALIDACIÓN CRÍTICA DE RACE CONDITION
-      if (stockDisponible < item.cantidad) {
+      if (stockActual.stock_fisico < item.cantidad) {
+        throw new AppError(
+          `Stock físico insuficiente para el producto ${item.productoNombre}. Disponible: ${stockActual.stock_fisico}`,
+          409
+        );
+      }
+
+      if (!tieneReservado && !puedeConsumirSinReserva) {
         throw new AppError(
           `Stock insuficiente para el producto ${item.productoNombre}. Disponible: ${stockDisponible}`,
-          409 // 409 Conflict es el status code semánticamente correcto para race conditions
+          409
         );
       }
     }
 
-    // 3. Si todo es válido, proceder con el descuento físico y liberación del reservado
+    // 3. Si todo es válido, proceder con el descuento físico y ajustando reserva si existe
     for (const item of itemsOrden) {
+      const stock = await tx.$queryRaw<Array<{ stock_reservado: number }>>`
+        SELECT stock_reservado FROM inv_stock_producto WHERE producto_id = ${item.productoId} FOR UPDATE
+      `;
+      const stockReservadoActual = stock[0]?.stock_reservado ?? 0;
+      const reservaUsada = Math.min(stockReservadoActual, item.cantidad);
+
       await tx.$executeRaw`
         UPDATE inv_stock_producto 
         SET 
           stock_fisico = stock_fisico - ${item.cantidad},
-          stock_reservado = stock_reservado - ${item.cantidad},
+          stock_reservado = stock_reservado - ${reservaUsada},
           fecha_actualizacion = NOW()
         WHERE producto_id = ${item.productoId}
       `;
