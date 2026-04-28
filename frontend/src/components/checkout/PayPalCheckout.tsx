@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { loadScript, type PayPalNamespace } from '@paypal/paypal-js';
 import api from '@/services/api';
 import { toast } from 'react-hot-toast';
 
@@ -12,9 +11,71 @@ interface PayPalCheckoutProps {
 
 declare global {
   interface Window {
-    paypal?: PayPalNamespace | undefined;
+    paypal?: any;
   }
 }
+
+// Función para cargar el SDK de PayPal desde el CDN
+const loadPayPalSDKScript = (clientId: string, currency: string = 'USD'): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    // Verificar si ya está cargado
+    if (window.paypal?.Buttons) {
+      console.log('[PayPal] SDK ya está cargado en window');
+      resolve();
+      return;
+    }
+
+    // Verificar si el script ya se está cargando
+    if (document.querySelector('script[src*="paypal.com/sdk"]')) {
+      console.log('[PayPal] Script ya está en el DOM');
+      // Esperar a que se cargue
+      let attempts = 0;
+      const checkInterval = setInterval(() => {
+        if (window.paypal?.Buttons) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+        attempts++;
+        if (attempts > 50) { // 5 segundos máximo
+          clearInterval(checkInterval);
+          reject(new Error('PayPal SDK no se cargó a tiempo'));
+        }
+      }, 100);
+      return;
+    }
+
+    // Crear el script
+    const script = document.createElement('script');
+    script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=${currency}&intent=capture&components=buttons`;
+    script.async = true;
+    script.defer = true;
+
+    script.onload = () => {
+      console.log('[PayPal] Script cargado del CDN');
+      // Esperar a que PayPal esté disponible
+      let attempts = 0;
+      const checkInterval = setInterval(() => {
+        if (window.paypal?.Buttons) {
+          console.log('[PayPal] window.paypal.Buttons disponible');
+          clearInterval(checkInterval);
+          resolve();
+        }
+        attempts++;
+        if (attempts > 50) {
+          clearInterval(checkInterval);
+          reject(new Error('PayPal Buttons no se inicializó'));
+        }
+      }, 100);
+    };
+
+    script.onerror = () => {
+      console.error('[PayPal] Error cargando script del CDN');
+      reject(new Error('No se pudo cargar el script de PayPal'));
+    };
+
+    document.head.appendChild(script);
+  });
+};
 
 export const PayPalCheckout = ({ ordenId, monto, onSuccess, onError }: PayPalCheckoutProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -23,8 +84,6 @@ export const PayPalCheckout = ({ ordenId, monto, onSuccess, onError }: PayPalChe
   const [sdkLoaded, setSdkLoaded] = useState(false);
   const buttonInstanceRef = useRef<any>(null);
   const isMountedRef = useRef(true);
-  const containerReadyRef = useRef(false);
-  const [retryCount, setRetryCount] = useState(0);
 
   const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
   const apiUrl = import.meta.env.VITE_API_URL;
@@ -42,164 +101,140 @@ export const PayPalCheckout = ({ ordenId, monto, onSuccess, onError }: PayPalChe
     isMountedRef.current = true;
 
     if (!clientId) {
-      console.error('VITE_PAYPAL_CLIENT_ID no está configurado en las variables de entorno');
-      setError('PayPal no está configurado en este momento. Por favor, contacta al administrador o intenta más tarde.');
+      console.error('VITE_PAYPAL_CLIENT_ID no está configurado');
+      setError('PayPal no está configurado. Contacta al administrador.');
       setIsLoading(false);
-      toast.error('PayPal no está disponible. Intente con otro método de pago.');
+      toast.error('PayPal no está disponible.');
       onError();
       return;
     }
 
-    // Si ya está cargado, no hacer nada
-    if (window.paypal && window.paypal.Buttons) {
-      setSdkLoaded(true);
-      setIsLoading(false);
-      return;
-    }
-
-    // Cargar SDK
-    const loadPayPalSDK = async () => {
+    const loadSDK = async () => {
       try {
-        await loadScript({
-          clientId,
-          currency: 'USD',
-          intent: 'capture',
-          components: 'buttons',
-        });
-
-        if (isMountedRef.current && window.paypal?.Buttons) {
+        console.log('[PayPal] Iniciando carga del SDK...');
+        await loadPayPalSDKScript(clientId, 'USD');
+        
+        if (isMountedRef.current) {
+          console.log('[PayPal] SDK cargado exitosamente');
           setSdkLoaded(true);
           setIsLoading(false);
         }
       } catch (err: any) {
-        console.error('Error cargando SDK de PayPal:', err);
+        console.error('[PayPal] Error:', err);
         if (isMountedRef.current) {
-          setError('No se pudo cargar el SDK de PayPal');
+          setError(err.message || 'Error al cargar PayPal');
           setIsLoading(false);
-          toast.error('No se pudo cargar PayPal. Verifica tu conexión.');
+          toast.error('No se pudo cargar PayPal');
           onError();
         }
       }
     };
 
-    loadPayPalSDK();
+    loadSDK();
 
     return () => {
       isMountedRef.current = false;
     };
   }, [clientId, onError]);
 
-  // Renderizar botones cuando el SDK y el contenedor estén listos
-  const renderButtons = useCallback(async () => {
-    // Verificar condiciones
-    if (!isMountedRef.current) return;
-    if (!sdkLoaded) return;
-    if (!containerRef.current) return;
+  // Renderizar botones cuando el SDK esté listo
+  useEffect(() => {
+    if (!sdkLoaded || !containerRef.current || buttonInstanceRef.current) {
+      return;
+    }
 
-    // Evitar renderizado múltiple
-    if (buttonInstanceRef.current) return;
+    const renderButtons = async () => {
+      try {
+        if (!window.paypal?.Buttons) {
+          throw new Error('PayPal Buttons no está disponible');
+        }
 
-    try {
-      // Limpiar contenedor
-      containerRef.current.innerHTML = '';
+        console.log('[PayPal] Renderizando botones...');
 
-      if (!window.paypal?.Buttons) {
-        throw new Error('PayPal Buttons no disponible');
-      }
+        // Limpiar contenedor
+        containerRef.current!.innerHTML = '';
 
-      // Crear botones
-      const buttons = window.paypal.Buttons({
-        style: {
-          shape: 'rect',
-          color: 'gold',
-          layout: 'vertical',
-          label: 'paypal',
-          height: 55,
-        },
+        // Crear botones
+        const buttons = window.paypal.Buttons({
+          style: {
+            shape: 'rect',
+            color: 'gold',
+            layout: 'vertical',
+            label: 'paypal',
+            height: 55,
+          },
 
-        createOrder: async () => {
-          try {
-            const { data: response } = await api.post('/pagos/paypal/crear-orden', {
-              ordenInternalId: ordenId,
-            });
+          createOrder: async () => {
+            try {
+              console.log('[PayPal] Creando orden con monto:', monto);
+              const { data: response } = await api.post('/pagos/paypal/crear-orden', {
+                ordenInternalId: ordenId,
+              });
 
-            const paypalOrderId = response?.data?.paypalOrderId || response?.data?.data?.paypalOrderId;
+              const paypalOrderId = response?.data?.paypalOrderId || response?.data?.data?.paypalOrderId;
 
-            if (!paypalOrderId) {
-              throw new Error('ID de orden PayPal no recibido');
+              if (!paypalOrderId) {
+                throw new Error('ID de orden PayPal no recibido');
+              }
+
+              console.log('[PayPal] Orden creada:', paypalOrderId);
+              return paypalOrderId;
+            } catch (error: any) {
+              console.error('[PayPal] Error creando orden:', error);
+              const backendMessage = error?.response?.data?.message || error?.message || 'Error al crear la orden';
+              toast.error(`Error: ${backendMessage}`);
+              throw error;
             }
+          },
 
-            return paypalOrderId;
-          } catch (error: any) {
-            console.error('Error creando orden PayPal:', error);
-            const backendMessage = error?.response?.data?.message || error?.message || 'Error al crear la orden';
-            toast.error(`Error al crear la orden de pago: ${backendMessage}`);
+          onApprove: async (data: any) => {
+            try {
+              console.log('[PayPal] Aprobado por usuario:', data.orderID);
+              await api.post('/pagos/paypal/capturar', {
+                paypalOrderId: data.orderID,
+                ordenInternalId: ordenId,
+              });
+
+              toast.success('¡Pago completado exitosamente!');
+              onSuccess(data.orderID);
+            } catch (error: any) {
+              console.error('[PayPal] Error capturando:', error);
+              const msg = error?.response?.data?.message || error?.message;
+              toast.error(`Error: ${msg}`);
+              onError();
+            }
+          },
+
+          onError: (err: any) => {
+            console.error('[PayPal] Error en Buttons:', err);
+            toast.error(`Error PayPal: ${err?.message || 'Unknown error'}`);
             onError();
-            throw error;
-          }
-        },
+          },
 
-        onApprove: async (data: any) => {
-          try {
-            await api.post('/pagos/paypal/capturar', {
-              paypalOrderId: data.orderID,
-              ordenInternalId: ordenId,
-            });
+          onCancel: () => {
+            console.log('[PayPal] Cancelado por usuario');
+            toast('Pago cancelado', { icon: 'ℹ️' });
+          },
+        });
 
-            toast.success('¡Pago completado exitosamente!');
-            onSuccess(data.orderID);
-          } catch (error: any) {
-            console.error('Error capturando pago:', error);
-            const backendMessage = error?.response?.data?.message || error?.message || 'Error al procesar el pago';
-            toast.error(`Error al procesar el pago: ${backendMessage}`);
-            onError();
-          }
-        },
+        // Renderizar
+        await buttons.render('#paypal-button-container');
+        buttonInstanceRef.current = buttons;
+        console.log('[PayPal] Botones renderizados exitosamente');
 
-        onError: (err: any) => {
-          console.error('Error en PayPal Buttons:', err);
-          const errorMessage = err?.message || err?.details || 'Error en el proceso de pago';
-          toast.error(`Error en PayPal: ${errorMessage}`);
+      } catch (err: any) {
+        console.error('[PayPal] Error renderizando:', err);
+        if (isMountedRef.current) {
+          setError(err?.message || 'Error al renderizar');
+          toast.error('Error al cargar PayPal');
           onError();
-        },
-
-        onCancel: () => {
-          console.log('Pago cancelado por el usuario');
-          toast('Pago cancelado. Puedes intentar nuevamente.', { icon: 'ℹ️' });
-        },
-      });
-
-      // Renderizar
-      await buttons.render('#paypal-button-container');
-      buttonInstanceRef.current = buttons;
-
-    } catch (err: any) {
-      console.error('Error renderizando botones de PayPal:', err);
-      if (isMountedRef.current) {
-        setError(err?.message || 'Error al renderizar PayPal');
-        toast.error('No se pudo cargar PayPal. Intenta nuevamente.');
-        onError();
+        }
       }
-    }
-  }, [ordenId, onSuccess, onError, sdkLoaded]);
+    };
 
-  // Efecto para renderizar cuando todo esté listo
-  useEffect(() => {
-    if (sdkLoaded && containerReadyRef.current && !buttonInstanceRef.current) {
-      // Pequeño delay para asegurar que el DOM está listo
-      const timer = setTimeout(() => {
-        renderButtons();
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [sdkLoaded, renderButtons]);
+    renderButtons();
 
-  // Marcar contenedor como listo después del primer render
-  useEffect(() => {
-    if (containerRef.current) {
-      containerReadyRef.current = true;
-    }
-  }, []);
+  }, [sdkLoaded, ordenId, monto, onSuccess, onError]);
 
   // Cleanup
   useEffect(() => {
@@ -209,7 +244,7 @@ export const PayPalCheckout = ({ ordenId, monto, onSuccess, onError }: PayPalChe
         try {
           buttonInstanceRef.current.close();
         } catch (err) {
-          // Ignorar errores al cerrar
+          // Ignorar
         }
         buttonInstanceRef.current = null;
       }
@@ -219,21 +254,12 @@ export const PayPalCheckout = ({ ordenId, monto, onSuccess, onError }: PayPalChe
   // Reintentar
   const handleRetry = () => {
     setError(null);
-    buttonInstanceRef.current = null;
-    containerReadyRef.current = false;
-    setSdkLoaded(false);
     setIsLoading(true);
-
-    // Recargar SDK
+    buttonInstanceRef.current = null;
+    setSdkLoaded(false);
     if (containerRef.current) {
       containerRef.current.innerHTML = '';
     }
-
-    // Pequeño delay antes de reintentar
-    setTimeout(() => {
-      containerReadyRef.current = true;
-      setSdkLoaded(false);
-    }, 100);
   };
 
   if (error) {
