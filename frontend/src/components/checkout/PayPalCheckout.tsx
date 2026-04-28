@@ -20,68 +20,90 @@ export const PayPalCheckout = ({ ordenId, monto, onSuccess, onError }: PayPalChe
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sdkLoaded, setSdkLoaded] = useState(false);
   const buttonInstanceRef = useRef<any>(null);
   const isMountedRef = useRef(true);
+  const containerReadyRef = useRef(false);
 
   const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
 
-  // Función para limpiar el contenedor
-  const clearContainer = useCallback(() => {
-    if (containerRef.current) {
-      containerRef.current.innerHTML = '';
-    }
-  }, []);
+  // Cargar SDK de PayPal
+  useEffect(() => {
+    isMountedRef.current = true;
 
-  // Función para cerrar la instancia de PayPal de manera segura
-  const closePayPalButtons = useCallback(() => {
-    if (buttonInstanceRef.current) {
-      try {
-        buttonInstanceRef.current.close();
-      } catch (err) {
-        console.warn('Error al cerrar botones de PayPal:', err);
-      }
-      buttonInstanceRef.current = null;
-    }
-    clearContainer();
-  }, [clearContainer]);
-
-  // Renderizar botones de PayPal
-  const renderPayPalButtons = useCallback(async () => {
-    if (!isMountedRef.current) return;
-
-    // Verificar que el contenedor exista
-    if (!containerRef.current) {
-      console.error('Contenedor de PayPal no disponible');
-      setError('Contenedor de PayPal no disponible');
+    if (!clientId) {
+      toast.error('Falta configurar VITE_PAYPAL_CLIENT_ID en el frontend.');
+      setError('Client ID de PayPal no configurado');
+      setIsLoading(false);
       onError();
       return;
     }
 
-    // Limpiar contenedor antes de renderizar
-    clearContainer();
+    // Si ya está cargado, no hacer nada
+    if (window.paypal && window.paypal.Buttons) {
+      setSdkLoaded(true);
+      setIsLoading(false);
+      return;
+    }
 
-    try {
-      // Inicializar PayPal SDK
-      if (!window.paypal) {
+    // Cargar SDK
+    const loadPayPalSDK = async () => {
+      try {
         await loadScript({
           clientId,
           currency: 'USD',
           intent: 'capture',
           components: 'buttons',
         });
+
+        if (isMountedRef.current && window.paypal?.Buttons) {
+          setSdkLoaded(true);
+          setIsLoading(false);
+        }
+      } catch (err: any) {
+        console.error('Error cargando SDK de PayPal:', err);
+        if (isMountedRef.current) {
+          setError('No se pudo cargar el SDK de PayPal');
+          setIsLoading(false);
+          toast.error('No se pudo cargar PayPal. Verifica tu conexión.');
+          onError();
+        }
+      }
+    };
+
+    loadPayPalSDK();
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [clientId, onError]);
+
+  // Renderizar botones cuando el SDK y el contenedor estén listos
+  const renderButtons = useCallback(async () => {
+    // Verificar condiciones
+    if (!isMountedRef.current) return;
+    if (!sdkLoaded) return;
+    if (!containerRef.current) return;
+
+    // Evitar renderizado múltiple
+    if (buttonInstanceRef.current) return;
+
+    try {
+      // Limpiar contenedor
+      containerRef.current.innerHTML = '';
+
+      if (!window.paypal?.Buttons) {
+        throw new Error('PayPal Buttons no disponible');
       }
 
-      if (!window.paypal || !window.paypal.Buttons) {
-        throw new Error('PayPal SDK no se cargó correctamente');
-      }
-
-      // Crear botones de PayPal
+      // Crear botones
       const buttons = window.paypal.Buttons({
         style: {
           shape: 'rect',
           color: 'gold',
           layout: 'vertical',
           label: 'paypal',
+          height: 55,
         },
 
         createOrder: async () => {
@@ -136,59 +158,71 @@ export const PayPalCheckout = ({ ordenId, monto, onSuccess, onError }: PayPalChe
         },
       });
 
-      // Verificar si el contenedor sigue existiendo
-      if (!containerRef.current) {
-        console.warn('Contenedor no disponible para renderizar botones');
-        return;
-      }
-
-      // Renderizar botones
-      await buttons.render(containerRef.current);
+      // Renderizar
+      await buttons.render('#paypal-button-container');
       buttonInstanceRef.current = buttons;
-      setIsLoading(false);
 
     } catch (err: any) {
-      console.error('Error al inicializar PayPal:', err);
-      setError(err?.message || 'Error al cargar PayPal');
-      toast.error('No se pudo cargar PayPal. Verifica tu configuración.');
-      setIsLoading(false);
-      onError();
+      console.error('Error renderizando botones de PayPal:', err);
+      if (isMountedRef.current) {
+        setError(err?.message || 'Error al renderizar PayPal');
+        toast.error('No se pudo cargar PayPal. Intenta nuevamente.');
+        onError();
+      }
     }
-  }, [clientId, ordenId, onSuccess, onError, clearContainer]);
+  }, [ordenId, onSuccess, onError, sdkLoaded]);
 
-  // Efecto principal para cargar y renderizar PayPal
+  // Efecto para renderizar cuando todo esté listo
   useEffect(() => {
-    isMountedRef.current = true;
-    setIsLoading(true);
-
-    if (!clientId) {
-      toast.error('Falta configurar VITE_PAYPAL_CLIENT_ID en el frontend.');
-      setError('Client ID de PayPal no configurado');
-      setIsLoading(false);
-      onError();
-      return;
+    if (sdkLoaded && containerReadyRef.current && !buttonInstanceRef.current) {
+      // Pequeño delay para asegurar que el DOM está listo
+      const timer = setTimeout(() => {
+        renderButtons();
+      }, 100);
+      return () => clearTimeout(timer);
     }
+  }, [sdkLoaded, renderButtons]);
 
-    // Verificar si el SDK ya está cargado
-    if (window.paypal && window.paypal.Buttons) {
-      renderPayPalButtons();
-    } else {
-      renderPayPalButtons();
+  // Marcar contenedor como listo después del primer render
+  useEffect(() => {
+    if (containerRef.current) {
+      containerReadyRef.current = true;
     }
+  }, []);
 
-    // Cleanup al desmontar
+  // Cleanup
+  useEffect(() => {
     return () => {
       isMountedRef.current = false;
-      closePayPalButtons();
+      if (buttonInstanceRef.current) {
+        try {
+          buttonInstanceRef.current.close();
+        } catch (err) {
+          // Ignorar errores al cerrar
+        }
+        buttonInstanceRef.current = null;
+      }
     };
-  }, [ordenId, renderPayPalButtons, closePayPalButtons, onError]);
+  }, []);
 
-  // Reintentar carga si hay error
+  // Reintentar
   const handleRetry = () => {
     setError(null);
+    buttonInstanceRef.current = null;
+    containerReadyRef.current = false;
+    setSdkLoaded(false);
     setIsLoading(true);
-    closePayPalButtons();
-    renderPayPalButtons();
+
+    // Recargar SDK
+    if (containerRef.current) {
+      containerRef.current.innerHTML = '';
+    }
+
+    // Pequeño delay antes de reintentar
+    setTimeout(() => {
+      containerReadyRef.current = true;
+      setSdkLoaded(false);
+    }, 100);
   };
 
   if (error) {
