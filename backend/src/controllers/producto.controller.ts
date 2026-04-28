@@ -7,10 +7,11 @@ import { productoSchema } from '../schemas/producto.schema.js';
 import fs from 'fs';
 import path from 'path';
 
-// Interfaz para Request con archivos de multer
-interface RequestWithFiles extends Request {
-  files?: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] };
-}
+// Tipo para Request con archivos de multer (usando any para compatibilidad)
+type RequestWithFiles = Request & {
+  files?: any;
+  usuario?: any;
+};
 
 const sincronizarImagenPrincipal = async (productoId: number, imagenUrl?: string) => {
   if (!imagenUrl) return;
