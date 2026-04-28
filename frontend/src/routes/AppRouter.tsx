@@ -8,6 +8,8 @@ import { LoginPage } from '@/pages/auth/LoginPage';
 import { ProductListPage } from '@/pages/shop/ProductListPage';
 import { ProductDetailPage } from '@/pages/shop/ProductDetailPage';
 import { CheckoutWizardPage } from '@/pages/shop/CheckoutWizardPage';
+import { PayPalSuccessPage } from '@/pages/shop/PayPalSuccessPage';
+import { PayPalCancelPage } from '@/pages/shop/PayPalCancelPage';
 import { DashboardPage } from '@/pages/admin/DashboardPage';
 import { ProductFormPage } from '@/pages/admin/ProductFormPage';
 import { OrdersAdminPage } from '@/pages/admin/OrdersAdminPage';
@@ -43,6 +45,8 @@ export const AppRouter = () => {
               <CheckoutWizardPage />
             </ProtectedRoute>
           } />
+          <Route path="/checkout/paypal/success" element={<PayPalSuccessPage />} />
+          <Route path="/checkout/paypal/cancel" element={<PayPalCancelPage />} />
           <Route path="/mis-ordenes" element={<ProtectedRoute roles={[]}><MyOrdersPage /></ProtectedRoute>} />
           <Route path="/mis-deseos" element={<ProtectedRoute roles={[]}><WishlistPage /></ProtectedRoute>} />
         </Route>
