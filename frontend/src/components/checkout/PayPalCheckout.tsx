@@ -24,8 +24,18 @@ export const PayPalCheckout = ({ ordenId, monto, onSuccess, onError }: PayPalChe
   const buttonInstanceRef = useRef<any>(null);
   const isMountedRef = useRef(true);
   const containerReadyRef = useRef(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
+  const apiUrl = import.meta.env.VITE_API_URL;
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[PayPal] Configuración:', { 
+      clientId: clientId ? `${clientId.substring(0, 10)}...` : 'NO CONFIGURADO',
+      apiUrl: apiUrl || 'NO CONFIGURADA'
+    });
+  }, []);
 
   // Cargar SDK de PayPal
   useEffect(() => {
