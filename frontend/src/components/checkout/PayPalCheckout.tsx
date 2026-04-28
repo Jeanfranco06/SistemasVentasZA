@@ -32,9 +32,10 @@ export const PayPalCheckout = ({ ordenId, monto, onSuccess, onError }: PayPalChe
     isMountedRef.current = true;
 
     if (!clientId) {
-      toast.error('Falta configurar VITE_PAYPAL_CLIENT_ID en el frontend.');
-      setError('Client ID de PayPal no configurado');
+      console.error('VITE_PAYPAL_CLIENT_ID no está configurado en las variables de entorno');
+      setError('PayPal no está configurado en este momento. Por favor, contacta al administrador o intenta más tarde.');
       setIsLoading(false);
+      toast.error('PayPal no está disponible. Intente con otro método de pago.');
       onError();
       return;
     }
