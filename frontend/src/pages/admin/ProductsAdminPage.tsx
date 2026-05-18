@@ -342,7 +342,7 @@ export const ProductsAdminPage = () => {
                   <div className="flex flex-col">
                     <span className="text-slate-400 text-xs">Precio Venta:</span>
                     <span className="font-bold text-slate-900 bg-blue-50/50 px-2 py-0.5 rounded-lg border border-blue-100/50 text-sm">
-                      S/ {parseFloat(prod.precioVenta as string).toFixed(2)}
+                      S/ {Number(prod.precioVenta).toFixed(2)}
                     </span>
                   </div>
                   <div>
