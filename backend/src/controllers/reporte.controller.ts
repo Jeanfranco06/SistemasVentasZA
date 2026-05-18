@@ -316,10 +316,14 @@ export const repRentabilidadProducto = (req: Request, res: Response) => {
 export const repVentasCategoria = (req: Request, res: Response) => {
   generateSafeReport(
     req, res, 'Ventas_por_Categoria', 'Ventas Comparativas por Categoría', undefined,
-    Promise.resolve([ // Datos de ejemplo estructurados para no fallar
-      { nombre: 'Electrónica (Ejemplo)', total_ordenes: 15, ingresos: 15000 }, 
-      { nombre: 'Ropa (Ejemplo)', total_ordenes: 40, ingresos: 8000 }
-    ]),
+    prisma.$queryRawUnsafe(`
+      SELECT c.nombre, COUNT(DISTINCT i.orden_id)::int as total_ordenes, SUM(i.subtotal) as ingresos
+      FROM ord_items_orden i
+      JOIN cat_productos p ON i.producto_id = p.id
+      JOIN cat_categorias c ON p.categoria_id = c.id
+      GROUP BY c.nombre
+      ORDER BY ingresos DESC
+    `),
     ['Categoría', 'Órdenes', 'Ingresos'],
     (r) => [r.nombre, r.total_ordenes, formatPen(r.ingresos)],
     [200, 100, 150]
@@ -327,13 +331,23 @@ export const repVentasCategoria = (req: Request, res: Response) => {
 };
 
 export const repComportamientoCarritos = (req: Request, res: Response) => {
+  const { fechaInicio, fechaFin } = req.query;
   generateSafeReport(
-    req, res, 'Comportamiento_Carritos', 'Embudo de Comportamiento de Carritos', undefined,
-    Promise.resolve([
-      { etapa: 'Carritos Creados', cantidad: 1000, tasa: '100%' }, 
-      { etapa: 'Iniciaron Checkout', cantidad: 300, tasa: '30%' }, 
-      { etapa: 'Compra Exitosa', cantidad: 150, tasa: '15%' }
-    ]),
+    req, res, 'Comportamiento_Carritos', 'Embudo de Comportamiento de Carritos', `Desde: ${fechaInicio} Hasta: ${fechaFin}`,
+    (async () => {
+      const orders: any = await prisma.$queryRawUnsafe(`SELECT COUNT(id)::int as cantidad FROM ord_ordenes WHERE fecha_creacion::date BETWEEN '${fechaInicio}' AND '${fechaFin}'`);
+      const carts: any = await prisma.$queryRawUnsafe(`SELECT COUNT(DISTINCT c.id)::int as cantidad FROM ord_carritos c JOIN ord_items_carrito i ON c.id = i.carrito_id WHERE c.fecha_actualizacion::date BETWEEN '${fechaInicio}' AND '${fechaFin}'`);
+      
+      const ordersCount = orders[0].cantidad;
+      const cartsCount = carts[0].cantidad;
+      const total = ordersCount + cartsCount;
+      
+      return [
+        { etapa: 'Total Intentos (Carritos + Órdenes)', cantidad: total, tasa: '100%' },
+        { etapa: 'Carritos Pendientes/Abandonados', cantidad: cartsCount, tasa: `${total > 0 ? Math.round((cartsCount / total) * 100) : 0}%` },
+        { etapa: 'Compras Exitosas', cantidad: ordersCount, tasa: `${total > 0 ? Math.round((ordersCount / total) * 100) : 0}%` }
+      ];
+    })(),
     ['Etapa', 'Cantidad', 'Tasa'],
     (r) => [r.etapa, r.cantidad, r.tasa],
     [200, 100, 100]
@@ -342,14 +356,16 @@ export const repComportamientoCarritos = (req: Request, res: Response) => {
 
 export const repComportamientoClientes = (req: Request, res: Response) => {
   generateSafeReport(
-    req, res, 'Comportamiento_Clientes', 'Segmentación de Clientes (RFM)', undefined,
-    Promise.resolve([
-      { segmento: 'VIP', cantidad: 10, valor: 45000 }, 
-      { segmento: 'Leales', cantidad: 50, valor: 20000 }, 
-      { segmento: 'Nuevos', cantidad: 200, valor: 5000 }
-    ]),
+    req, res, 'Comportamiento_Clientes', 'Segmentación de Clientes', undefined,
+    prisma.$queryRawUnsafe(`
+      SELECT c.segmento, COUNT(DISTINCT c.id)::int as cantidad, COALESCE(SUM(o.total), 0)::float as valor
+      FROM cli_clientes c
+      LEFT JOIN ord_ordenes o ON c.id = o.cliente_id
+      GROUP BY c.segmento
+      ORDER BY valor DESC
+    `),
     ['Segmento', 'Cantidad', 'Valor Total'],
-    (r) => [r.segmento, r.cantidad, `S/ ${r.valor.toLocaleString()}`],
+    (r) => [r.segmento, r.cantidad, formatPen(r.valor)],
     [150, 100, 150]
   );
 };
@@ -357,9 +373,18 @@ export const repComportamientoClientes = (req: Request, res: Response) => {
 export const repRotacionInventario = (req: Request, res: Response) => {
   generateSafeReport(
     req, res, 'Rotacion_Inventario', 'Rotación de Inventario', undefined,
-    Promise.resolve([{ sku: 'ELE-001', nombre: 'Smartphone', ventas: 150, stock: 15, rotacion: '10.0' }]),
-    ['SKU', 'Producto', 'Ventas', 'Stock Prom.', 'Rotación'],
-    (r) => [r.sku, r.nombre, r.ventas, r.stock, r.rotacion],
+    prisma.$queryRawUnsafe(`
+      SELECT p.sku, p.nombre, COALESCE(SUM(i.cantidad), 0)::int as ventas, COALESCE(s.stock_fisico, 0) as stock,
+             ROUND((COALESCE(SUM(i.cantidad), 0)::numeric / NULLIF(COALESCE(s.stock_fisico, 0), 0)), 2)::text as rotacion
+      FROM cat_productos p
+      LEFT JOIN ord_items_orden i ON p.id = i.producto_id
+      LEFT JOIN inv_stock_producto s ON p.id = s.producto_id
+      WHERE p.activo = true
+      GROUP BY p.sku, p.nombre, s.stock_fisico
+      ORDER BY ventas DESC
+    `),
+    ['SKU', 'Producto', 'Ventas', 'Stock Actual', 'Rotación'],
+    (r) => [r.sku, r.nombre, r.ventas, r.stock, r.rotacion || '0.00'],
     [60, 150, 60, 80, 60]
   );
 };
@@ -368,12 +393,21 @@ export const repIngresosVsCostos = (req: Request, res: Response) => {
   const { fechaInicio, fechaFin } = req.query;
   generateSafeReport(
     req, res, 'Ingresos_vs_Costos', 'Estado de Resultados', `Desde: ${fechaInicio} Hasta: ${fechaFin}`,
-    Promise.resolve([
-      { concepto: 'Ventas Brutas', monto: 100000 }, 
-      { concepto: '(-) Costos', monto: -45000 }, 
-      { concepto: '(=) Utilidad Neta', monto: 55000 }
-    ]),
-    ['Concepto', 'Monto (S/)'],
+    (async () => {
+      const ventas = await prisma.$queryRawUnsafe(`SELECT COALESCE(SUM(total), 0)::float as total FROM ord_ordenes WHERE fecha_creacion::date BETWEEN '${fechaInicio}' AND '${fechaFin}'`);
+      const costos = await prisma.$queryRawUnsafe(`SELECT COALESCE(SUM(i.cantidad * p.precio_costo), 0)::float as total FROM ord_items_orden i JOIN cat_productos p ON i.producto_id = p.id JOIN ord_ordenes o ON i.orden_id = o.id WHERE o.fecha_creacion::date BETWEEN '${fechaInicio}' AND '${fechaFin}'`);
+      
+      const v = (ventas as any)[0].total;
+      const c = (costos as any)[0].total;
+      const n = v - c;
+      
+      return [
+        { concepto: 'Ventas Brutas', monto: v },
+        { concepto: '(-) Costos', monto: -c },
+        { concepto: '(=) Utilidad Neta', monto: n }
+      ];
+    })(),
+    ['Concepto', 'Monto'],
     (r) => [r.concepto, formatPen(r.monto)],
     [250, 150]
   );

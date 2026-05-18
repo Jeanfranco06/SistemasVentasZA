@@ -225,7 +225,7 @@ export const ProductFormPage = () => {
   if (esEdicion && cargandoProducto) return <div className="p-10 text-center">Cargando datos del producto...</div>;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="w-full mx-auto">
       <Button variant="ghost" onClick={() => navigate(basePath)} className="mb-4">← Volver al listado</Button>
       
       <Card>

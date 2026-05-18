@@ -15,7 +15,7 @@ export const analisisABC = async (req: Request, res: Response, next: NextFunctio
           FROM cat_productos p
           JOIN ord_items_orden oi ON p.id = oi.producto_id
           JOIN ord_ordenes o ON oi.orden_id = o.id
-          WHERE o.estado_id IN (SELECT id FROM ord_estados_orden WHERE nombre IN ('pagada'))
+          WHERE o.estado_id IN (SELECT id FROM ord_estados_orden WHERE nombre IN ('pagada', 'en_proceso', 'enviada', 'entregada'))
           GROUP BY p.id, p.nombre
       ),
       Totales AS (
@@ -56,24 +56,24 @@ export const analisisRFM = async (req: Request, res: Response, next: NextFunctio
               SUM(o.total) AS valor_monetario
           FROM cli_clientes c
           JOIN ord_ordenes o ON c.id = o.cliente_id
-          WHERE o.estado_id IN (SELECT id FROM ord_estados_orden WHERE nombre IN ('pagada'))
+          WHERE o.estado_id IN (SELECT id FROM ord_estados_orden WHERE nombre IN ('pagada', 'en_proceso', 'enviada', 'entregada'))
           GROUP BY c.id, c.razon_social
       ),
       Puntuaciones AS (
           SELECT 
               *,
-              NTILE(4) OVER (ORDER BY ultima_compra ASC) AS R,
-              NTILE(4) OVER (ORDER BY frecuencia DESC) AS F,
-              NTILE(4) OVER (ORDER BY valor_monetario DESC) AS M
+              NTILE(4) OVER (ORDER BY ultima_compra ASC) AS "R",
+              NTILE(4) OVER (ORDER BY frecuencia DESC) AS "F",
+              NTILE(4) OVER (ORDER BY valor_monetario DESC) AS "M"
           FROM ClienteDatos
       )
       SELECT 
-          cliente_id, razon_social, ultima_compra, frecuencia, valor_monetario, R, F, M,
-          (R + F + M) AS score_rfm,
+          cliente_id, razon_social, ultima_compra, frecuencia, valor_monetario, "R", "F", "M",
+          ("R" + "F" + "M") AS score_rfm,
           CASE 
-              WHEN (R + F + M) >= 10 THEN 'VIP'
-              WHEN (R + F + M) >= 7 THEN 'Leal'
-              WHEN (R + F + M) >= 4 THEN 'Potencial'
+              WHEN ("R" + "F" + "M") >= 10 THEN 'VIP'
+              WHEN ("R" + "F" + "M") >= 7 THEN 'Leal'
+              WHEN ("R" + "F" + "M") >= 4 THEN 'Potencial'
               ELSE 'En Riesgo'
           END AS segmento_rfm
       FROM Puntuaciones
@@ -128,9 +128,13 @@ export const resumenEstadisticas = async (req: Request, res: Response, next: Nex
           },
         },
       }),
-      // Count all carts that have items (potential conversions) - not limited to current month
+      // Count all carts that have items (potential conversions) - limited to current month
       prisma.ordCarrito.findMany({
         where: {
+          fechaCreacion: {
+            gte: inicioMes,
+            lt: inicioSiguienteMes,
+          },
           items: {
             some: {},
           },
@@ -147,6 +151,8 @@ export const resumenEstadisticas = async (req: Request, res: Response, next: Nex
         FROM cat_categorias c
         JOIN cat_productos p ON p.categoria_id = c.id
         JOIN ord_items_orden oi ON oi.producto_id = p.id
+        JOIN ord_ordenes o ON o.id = oi.orden_id
+        WHERE o.estado_id IN (SELECT id FROM ord_estados_orden WHERE nombre IN ('pagada', 'en_proceso', 'enviada', 'entregada'))
         GROUP BY c.id, c.nombre
         ORDER BY ingresos DESC
         LIMIT 5
@@ -157,6 +163,7 @@ export const resumenEstadisticas = async (req: Request, res: Response, next: Nex
           EXTRACT(MONTH FROM o.fecha_creacion)::int AS mes,
           COALESCE(SUM(o.total), 0) AS ventas
         FROM ord_ordenes o
+        WHERE o.estado_id IN (SELECT id FROM ord_estados_orden WHERE nombre IN ('pagada', 'en_proceso', 'enviada', 'entregada'))
         GROUP BY EXTRACT(YEAR FROM o.fecha_creacion), EXTRACT(MONTH FROM o.fecha_creacion)
         ORDER BY ano ASC, mes ASC
       `,
@@ -192,7 +199,7 @@ export const resumenEstadisticas = async (req: Request, res: Response, next: Nex
             COALESCE(SUM(o.total), 0) AS valor_monetario
           FROM cli_clientes c
           JOIN ord_ordenes o ON c.id = o.cliente_id
-          WHERE o.estado_id IN (SELECT id FROM ord_estados_orden WHERE nombre IN ('pagada', 'en_proceso', 'completada'))
+          WHERE o.estado_id IN (SELECT id FROM ord_estados_orden WHERE nombre IN ('pagada', 'en_proceso', 'enviada', 'entregada'))
           GROUP BY c.id, c.razon_social
         ),
         ClienteConRecencia AS (
@@ -204,9 +211,9 @@ export const resumenEstadisticas = async (req: Request, res: Response, next: Nex
         Puntuaciones AS (
           SELECT
             *,
-            NTILE(4) OVER (ORDER BY dias_desde_ultima_compra DESC) AS R,
-            NTILE(4) OVER (ORDER BY frecuencia DESC) AS F,
-            NTILE(4) OVER (ORDER BY valor_monetario DESC) AS M
+            NTILE(4) OVER (ORDER BY dias_desde_ultima_compra DESC) AS "R",
+            NTILE(4) OVER (ORDER BY frecuencia DESC) AS "F",
+            NTILE(4) OVER (ORDER BY valor_monetario DESC) AS "M"
           FROM ClienteConRecencia
         )
         SELECT
@@ -215,14 +222,14 @@ export const resumenEstadisticas = async (req: Request, res: Response, next: Nex
           dias_desde_ultima_compra,
           frecuencia,
           valor_monetario::numeric AS valor_monetario,
-          R,
-          F,
-          M,
-          (R + F + M) AS score_rfm,
+          "R",
+          "F",
+          "M",
+          ("R" + "F" + "M") AS score_rfm,
           CASE
-            WHEN (R + F + M) >= 10 THEN 'VIP'
-            WHEN (R + F + M) >= 7 THEN 'Leal'
-            WHEN (R + F + M) >= 4 THEN 'Potencial'
+            WHEN ("R" + "F" + "M") >= 10 THEN 'VIP'
+            WHEN ("R" + "F" + "M") >= 7 THEN 'Leal'
+            WHEN ("R" + "F" + "M") >= 4 THEN 'Potencial'
             ELSE 'En Riesgo'
           END AS segmento_rfm
         FROM Puntuaciones
@@ -232,15 +239,19 @@ export const resumenEstadisticas = async (req: Request, res: Response, next: Nex
 
     const ventasMes = ordenesMes.reduce(
       (acc, orden) => {
+        const esVentaValida = ['pagada', 'en_proceso', 'enviada', 'entregada'].includes(orden.estado.nombre);
+        if (esVentaValida) {
+          acc.total_ventas += toNumber(orden.total);
+          acc.ventas_validas_count += 1;
+        }
         acc.total_ordenes += 1;
-        acc.total_ventas += toNumber(orden.total);
         return acc;
       },
-      { total_ordenes: 0, total_ventas: 0 }
+      { total_ordenes: 0, total_ventas: 0, ventas_validas_count: 0 }
     );
 
-    const ticket_promedio = ventasMes.total_ventas > 0 && ventasMes.total_ordenes > 0
-      ? ventasMes.total_ventas / ventasMes.total_ordenes
+    const ticket_promedio = ventasMes.total_ventas > 0 && ventasMes.ventas_validas_count > 0
+      ? ventasMes.total_ventas / ventasMes.ventas_validas_count
       : 0;
 
     const estadosOrdenes = await prisma.$queryRaw<Array<{ estado: string; cantidad: number }>>`

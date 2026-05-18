@@ -279,13 +279,22 @@ async function main() {
     });
   }
 
-  // 7. Órdenes demo para panel administrativo
+  // Helper to subtract days dynamically from today
+  const getDateDaysAgo = (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return d;
+  };
+
+  // 7. Órdenes demo para panel administrativo (con historial dinámico)
   const clienteDemo = await prisma.cliCliente.findUnique({ where: { usuarioId: clienteUser.id } });
   if (clienteDemo) {
     const ordenesSeed = [
-      { codigoOrden: 'ORD-DEMO-001', estadoId: estadoPendiente.id, items: [productosCreados[0], productosCreados[4]] },
-      { codigoOrden: 'ORD-DEMO-002', estadoId: estadoPagada.id, items: [productosCreados[1], productosCreados[8]] },
-      { codigoOrden: 'ORD-DEMO-003', estadoId: estadoProceso.id, items: [productosCreados[2], productosCreados[6]] }
+      { codigoOrden: 'ORD-DEMO-001', estadoId: estadoPendiente.id, items: [productosCreados[0], productosCreados[4]], fechaCreacion: getDateDaysAgo(2) }, // mes actual
+      { codigoOrden: 'ORD-DEMO-002', estadoId: estadoPagada.id, items: [productosCreados[1], productosCreados[8]], fechaCreacion: getDateDaysAgo(5) },    // mes actual
+      { codigoOrden: 'ORD-DEMO-003', estadoId: estadoProceso.id, items: [productosCreados[2], productosCreados[6]], fechaCreacion: getDateDaysAgo(10) },   // mes actual
+      { codigoOrden: 'ORD-DEMO-004', estadoId: estadoPagada.id, items: [productosCreados[3], productosCreados[5]], fechaCreacion: getDateDaysAgo(22) },   // mes anterior
+      { codigoOrden: 'ORD-DEMO-005', estadoId: estadoPagada.id, items: [productosCreados[0], productosCreados[7]], fechaCreacion: getDateDaysAgo(52) }    // hace dos meses
     ];
 
     for (const o of ordenesSeed) {
@@ -301,7 +310,8 @@ async function main() {
           impuestoIgv,
           costoEnvio: envioStandard.costoBase,
           total,
-          metodoEnvioId: envioStandard.id
+          metodoEnvioId: envioStandard.id,
+          fechaCreacion: o.fechaCreacion
         },
         create: {
           clienteId: clienteDemo.id,
@@ -311,7 +321,8 @@ async function main() {
           subtotal,
           impuestoIgv,
           costoEnvio: envioStandard.costoBase,
-          total
+          total,
+          fechaCreacion: o.fechaCreacion
         }
       });
 
@@ -326,6 +337,28 @@ async function main() {
           precioUnitario: item.precioVenta,
           subtotal: item.precioVenta
         }))
+      });
+    }
+
+    // 8. Carritos demo para métrica de tasa de conversión en el mes actual
+    console.log('🛒 Sembrando carritos de compra demo...');
+    await prisma.ordItemCarrito.deleteMany({});
+    await prisma.ordCarrito.deleteMany({});
+
+    for (let i = 1; i <= 6; i++) {
+      const carrito = await prisma.ordCarrito.create({
+        data: {
+          clienteId: clienteDemo.id,
+          fechaCreacion: getDateDaysAgo(i), // Creados en el mes actual
+        }
+      });
+
+      await prisma.ordItemCarrito.create({
+        data: {
+          carritoId: carrito.id,
+          productoId: productosCreados[i % productosCreados.length].id,
+          cantidad: 1
+        }
       });
     }
   }
